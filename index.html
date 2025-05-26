@@ -240,6 +240,15 @@
             checked
           /><label for="gravitybox">SHOW PENDULUM?</label>
         </span>
+        <span>
+          <input
+            type="checkbox"
+            id="lockLengthBox"
+            onchange="lockLengths = this.checked"
+          />
+          <label for="lockLengthBox">LOCK ROPE LENGTHS?</label>
+        </span>
+
       </div>
       <div class="masses">
         <span class="mass">
@@ -259,6 +268,14 @@
         <span onclick="doublePendulum.increaseSpeed()">+</span>
       </span>
       <span id="share" onclick="shareConfig()">SHARE</span>
+      <div class="toggles">
+        <span onclick="saveConfig(1)">💾1</span>
+        <span onclick="loadConfig(1)">📂1</span>
+        <span onclick="saveConfig(2)">💾2</span>
+        <span onclick="loadConfig(2)">📂2</span>
+      </div>
+
+
       <span id="toggle" onclick="toggleMenu()"> ☰ </span>
     </div>
   </body>
@@ -276,6 +293,7 @@
     const lowerBob = document.querySelector("#lower_bob");
     const tracerLine = document.querySelector("#tracer");
     let animation;
+    let lockLengths = false;
 
     class DoublePendulum {
       constructor({
@@ -408,16 +426,29 @@
 
       setUpperBobPos(x, y) {
         const [distX, distY] = [x - this.x0, y - this.y0];
-        this.l0 = Math.sqrt(distX ** 2 + distY ** 2);
-        this.ang0 = Math.atan2(distX, distY);
+        if (lockLengths) {
+          const angle = Math.atan2(distX, distY);
+          this.ang0 = angle;
+          // length stays the same
+        } else {
+          this.l0 = Math.sqrt(distX ** 2 + distY ** 2);
+          this.ang0 = Math.atan2(distX, distY);
+        }
       }
 
       setLowerBobPos(x, y) {
         const upperBobPos = this.getUpperBob();
         const [distX, distY] = [x - upperBobPos.x, y - upperBobPos.y];
-        this.l1 = Math.sqrt(distX ** 2 + distY ** 2);
-        this.ang1 = -Math.atan2(distX, distY);
+        if (lockLengths) {
+          const angle = -Math.atan2(distX, distY);
+          this.ang1 = angle;
+          // length stays the same
+        } else {
+          this.l1 = Math.sqrt(distX ** 2 + distY ** 2);
+          this.ang1 = -Math.atan2(distX, distY);
+        }
       }
+
 
       holdBase() {
         this.baseHold = true;
@@ -793,6 +824,42 @@
       window.location.hash = btoa(JSON.stringify(doublePendulum));
       shareButton.innerHTML = "👆 COPY LINK !!!";
       setTimeout(() => (shareButton.innerHTML = "SHARE"), 1500);
+    }
+
+    function saveConfig(slot) {
+      const config = JSON.stringify(doublePendulum);
+      localStorage.setItem(`pendulumSave${slot}`, config);
+      alert(`Saved to slot ${slot}`);
+    }
+
+    function loadConfig(slot) {
+      const config = localStorage.getItem(`pendulumSave${slot}`);
+      if (!config) {
+        alert(`No save found in slot ${slot}`);
+        return;
+      }
+      try {
+        const saved = JSON.parse(config);
+        for (let prop in saved) {
+          doublePendulum[prop] = saved[prop];
+        }
+
+        // Restore scale settings
+        doublePendulum.width = 100;
+        doublePendulum.height = (100 * innerHeight) / innerWidth;
+        doublePendulum.x0 = (saved.x0 / saved.width) * doublePendulum.width;
+        doublePendulum.y0 = (saved.y0 / saved.height) * doublePendulum.height;
+
+        canvas.setAttribute(
+          "viewBox",
+          `0 0 ${doublePendulum.width} ${doublePendulum.height}`
+        );
+
+        tracer.clearPoints();
+        upperGraph.clearPoints();
+      } catch (e) {
+        alert("Failed to load configuration.");
+      }
     }
 
     function handleHold(clickX, clickY) {
