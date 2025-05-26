@@ -170,6 +170,21 @@
           font-size: 14pt;
         }
       }
+
+      #runtime-timer {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        font-size: 16pt;
+        font-weight: bold;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #00ffcc;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-family: monospace;
+        z-index: 9999;
+      }
+
     </style>
   </head>
   <body>
@@ -188,7 +203,7 @@
         >GITHUB</a
       >
       <button id="pause">| |</button>
-      <span id="reset" onclick="refresh()">RESET</span>
+      <span id="reset" onclick="loadConfig(1)">RESET</span>
       <div class="toggles">
         <span id="trace">
           <input
@@ -278,6 +293,8 @@
 
       <span id="toggle" onclick="toggleMenu()"> ☰ </span>
     </div>
+    <div id="runtime-timer">00hrs, 00min, 00sec</div>
+
   </body>
   <script>
     const menu = document.querySelector(".menu");
@@ -797,12 +814,19 @@
       if (!animation) {
         animation = setInterval(animate, 1000 / doublePendulum.fps);
         animationToggleButton.innerHTML = "| |";
+        if (pauseStart !== null) {
+          pausedTime += Date.now() - pauseStart;
+          pauseStart = null;
+        }
       } else {
         clearInterval(animation);
         animation = null;
         animationToggleButton.innerHTML = ">";
+        pauseStart = Date.now();
       }
-    }
+}
+
+
 
     function toggleMenu() {
       if (menu.style.transform == "translate(-50%, -97%)") {
@@ -832,35 +856,47 @@
       alert(`Saved to slot ${slot}`);
     }
 
-    function loadConfig(slot) {
-      const config = localStorage.getItem(`pendulumSave${slot}`);
-      if (!config) {
-        alert(`No save found in slot ${slot}`);
-        return;
-      }
-      try {
-        const saved = JSON.parse(config);
-        for (let prop in saved) {
-          doublePendulum[prop] = saved[prop];
-        }
-
-        // Restore scale settings
-        doublePendulum.width = 100;
-        doublePendulum.height = (100 * innerHeight) / innerWidth;
-        doublePendulum.x0 = (saved.x0 / saved.width) * doublePendulum.width;
-        doublePendulum.y0 = (saved.y0 / saved.height) * doublePendulum.height;
-
-        canvas.setAttribute(
-          "viewBox",
-          `0 0 ${doublePendulum.width} ${doublePendulum.height}`
-        );
-
-        tracer.clearPoints();
-        upperGraph.clearPoints();
-      } catch (e) {
-        alert("Failed to load configuration.");
-      }
+  function loadConfig(slot) {
+    let config = localStorage.getItem(`pendulumSave${slot}`);
+    if (!config) {
+      // No save found — use refresh to load default
+      alert(`No save in slot ${slot}, loading default.`);
+      refresh();  // reset to default
+      return;
     }
+    try {
+      const saved = JSON.parse(config);
+      for (let prop in saved) {
+        doublePendulum[prop] = saved[prop];
+      }
+
+      // Restore scale settings
+      doublePendulum.width = 100;
+      doublePendulum.height = (100 * innerHeight) / innerWidth;
+      doublePendulum.x0 = (saved.x0 / saved.width) * doublePendulum.width;
+      doublePendulum.y0 = (saved.y0 / saved.height) * doublePendulum.height;
+
+      canvas.setAttribute(
+        "viewBox",
+        `0 0 ${doublePendulum.width} ${doublePendulum.height}`
+      );
+
+      tracer.clearPoints();
+      upperGraph.clearPoints();
+    } catch (e) {
+      alert("Failed to load configuration.");
+      refresh(); // fallback
+    }
+
+    startTime = Date.now();
+    pausedTime = 0;
+    pauseStart = Date.now(); // Reset timer to paused
+    clearInterval(animation);
+    animation = null;
+    animationToggleButton.innerHTML = ">";
+    drawPendulum();
+
+  }
 
     function handleHold(clickX, clickY) {
       const { x0, y0, baseRad, r0, r1 } = doublePendulum;
@@ -907,7 +943,12 @@
 
     function handleDrop() {
       if (!animation)
-        animation = setInterval(animate, 1000 / doublePendulum.fps);
+      {
+        animation = null;
+        animationToggleButton.innerHTML = ">";
+        startTime = Date.now();
+        pauseStart = Date.now(); // Timer starts paused
+      }
       doublePendulum.dropUpperBob();
       doublePendulum.dropLowerBob();
       doublePendulum.dropBase();
@@ -955,5 +996,29 @@
     window.addEventListener("keyup", (e) => {
       if (e.keyCode == 32 || e.key == " ") animationToggle();
     });
+    let startTime = Date.now();
+    let pausedTime = 0;
+    let pauseStart = Date.now(); // Initially paused
+
+    function updateTimer() {
+      let elapsed;
+      if (pauseStart !== null) {
+        elapsed = pauseStart - startTime - pausedTime;
+      } else {
+        elapsed = Date.now() - startTime - pausedTime;
+      }
+
+      const totalSeconds = Math.floor(elapsed / 1000);
+      const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(totalSeconds % 60).padStart(2, '0');
+
+      document.getElementById("runtime-timer").innerText =
+        `${hrs}hrs, ${mins}min, ${secs}sec`;
+    }
+
+    setInterval(updateTimer, 1000);
+
+
   </script>
 </html>
