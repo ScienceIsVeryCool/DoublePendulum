@@ -185,6 +185,19 @@
         z-index: 9999;
       }
 
+      #ticks-counter {
+          position: fixed;
+          bottom: 40px; /* Adjust as needed to be below the timer */
+          left: 10px;
+          font-size: 16pt;
+          font-weight: bold;
+          background-color: rgba(255, 255, 255, 0.1);
+          color: #00ccff; /* A different color for distinction */
+          padding: 5px 10px;
+          border-radius: 5px;
+          font-family: monospace;
+          z-index: 9999;
+      }
     </style>
   </head>
   <body>
@@ -223,6 +236,13 @@
         </span>
       </div>
       <div class="toggles">
+        <span>
+          <input
+            type="checkbox"
+            onchange="pauseOnFindEnabled = this.checked; if (this.checked) loadSavedConfig2ForPause();"
+            id="pauseOnFindBox"
+          /><label for="pauseOnFindBox">PAUSE ON FIND 2?</label>
+        </span>
         <span id="persist">
           <input
             type="checkbox"
@@ -260,10 +280,10 @@
             type="checkbox"
             id="lockLengthBox"
             onchange="lockLengths = this.checked"
+            checked
           />
           <label for="lockLengthBox">LOCK ROPE LENGTHS?</label>
         </span>
-
       </div>
       <div class="masses">
         <span class="mass">
@@ -290,11 +310,10 @@
         <span onclick="loadConfig(2)">📂2</span>
       </div>
 
-
       <span id="toggle" onclick="toggleMenu()"> ☰ </span>
     </div>
-    <div id="runtime-timer">00hrs, 00min, 00sec</div>
-
+    <div id="runtime-timer">00hrs, 00min, 00sec 0mill</div>
+    <div id="ticks-counter">Ticks: 0</div>
   </body>
   <script>
     const menu = document.querySelector(".menu");
@@ -309,8 +328,18 @@
     const upperBob = document.querySelector("#upper_bob");
     const lowerBob = document.querySelector("#lower_bob");
     const tracerLine = document.querySelector("#tracer");
+    const pauseOnFindCheckbox = document.getElementById("pauseOnFindBox"); // Reference to the new checkbox
+    const ticksCounter = document.getElementById("ticks-counter"); // Get reference to the new div
+
+    let totalTicks = 0; // Initialize total ticks
     let animation;
-    let lockLengths = false;
+    let lockLengths = true;
+    let pauseOnFindEnabled = false; // State for the new checkbox
+    let savedPendulumState2 = null; // To store the config from Save 2 for comparison
+    const acceptableErrorPercentage = 0.01; // 1% acceptable error
+    let startTime = Date.now();
+    let pausedTime = 0;
+    let pauseStart = Date.now(); // Initially paused
 
     class DoublePendulum {
       constructor({
@@ -465,7 +494,6 @@
           this.ang1 = -Math.atan2(distX, distY);
         }
       }
-
 
       holdBase() {
         this.baseHold = true;
@@ -687,10 +715,11 @@
     let doublePendulum;
 
     const tracer = new Tracer();
-
     const upperGraph = new Tracer();
 
     function refresh() {
+      totalTicks = 0; // Reset ticks on refresh
+      ticksCounter.innerText = `Ticks: ${totalTicks}`;
       const scaleWidth = 100;
       const scaleHeight = (100 * innerHeight) / innerWidth;
       const scale = Math.min(scaleWidth, scaleHeight);
@@ -716,7 +745,7 @@
         g: 0.1,
         massScaleFactor: 1.2,
         speedScaleFactor: 1.2,
-        dt: 1,
+        dt: 0.1,
         fps: 100,
       });
 
@@ -800,16 +829,71 @@
       upperGraphLine.setAttribute("d", upperGraph.getPointsAsString());
     }
 
+    /**
+     * Calculates the Euclidean distance between two points.
+     * @param {object} p1 - First point {x, y}.
+     * @param {object} p2 - Second point {x, y}.
+     * @returns {number} The distance between p1 and p2.
+     */
+    function getDistance(p1, p2) {
+      return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    }
+
+    /**
+     * Checks if the current pendulum state is close to the saved state 2, and pauses if so.
+     */
+    function checkPauseOnFind() {
+      if (!pauseOnFindEnabled || !savedPendulumState2) {
+        return; // Only proceed if the toggle is on and a save exists
+      }
+
+      // Get current bob positions
+      const currentUpperBobPos = doublePendulum.getUpperBob();
+      const currentLowerBobPos = doublePendulum.getLowerBob();
+
+      // Get saved bob positions from savedPendulumState2
+      // Temporarily create a dummy pendulum object to get saved positions
+      const dummyPendulum = new DoublePendulum({
+        ...savedPendulumState2,
+        width: doublePendulum.width, // Use current canvas scale for comparison
+        height: doublePendulum.height,
+      });
+      const savedUpperBobPos = dummyPendulum.getUpperBob();
+      const savedLowerBobPos = dummyPendulum.getLowerBob();
+
+      // Calculate the acceptable error threshold based on the upper string length
+      // This makes the error relative to the pendulum's size
+      const errorThreshold = doublePendulum.l0 * acceptableErrorPercentage;
+
+      // Calculate distances
+      const distUpper = getDistance(currentUpperBobPos, savedUpperBobPos);
+      const distLower = getDistance(currentLowerBobPos, savedLowerBobPos);
+
+      // Check if both bobs are within the acceptable error margin
+      if (distUpper <= errorThreshold && distLower <= errorThreshold) {
+        if (animation) { // Only pause if not already paused
+            animationToggle();
+            // Optionally, provide a visual cue or message
+            console.log("PAUSED: Pendulum found Save 2 position!");
+        }
+      }
+    }
+
     function animate() {
       doublePendulum.move();
       drawPendulum();
 
       tracer.addPoint(doublePendulum.getLowerBob());
       drawTracer();
+
+      checkPauseOnFind(); // Call the new check function in each animation frame
+
+      totalTicks++; // Increment total ticks with each animation frame
+      ticksCounter.innerText = `Ticks: ${totalTicks}`; // Update the display
     }
 
     animation = setInterval(animate, 1000 / doublePendulum.fps);
-
+    animationToggle()
     function animationToggle(e) {
       if (!animation) {
         animation = setInterval(animate, 1000 / doublePendulum.fps);
@@ -824,9 +908,7 @@
         animationToggleButton.innerHTML = ">";
         pauseStart = Date.now();
       }
-}
-
-
+    }
 
     function toggleMenu() {
       if (menu.style.transform == "translate(-50%, -97%)") {
@@ -850,53 +932,93 @@
       setTimeout(() => (shareButton.innerHTML = "SHARE"), 1500);
     }
 
+    /**
+     * Saves the current pendulum configuration to localStorage.
+     * @param {number} slot - The save slot number (1 or 2).
+     */
     function saveConfig(slot) {
       const config = JSON.stringify(doublePendulum);
       localStorage.setItem(`pendulumSave${slot}`, config);
-      alert(`Saved to slot ${slot}`);
+      // If saving to slot 2, update savedPendulumState2 immediately
+      if (slot === 2) {
+        savedPendulumState2 = JSON.parse(config);
+      }
+      // Replaced alert with console log for better user experience in iframe
+      console.log(`Saved to slot ${slot}`);
     }
 
-  function loadConfig(slot) {
-    let config = localStorage.getItem(`pendulumSave${slot}`);
-    if (!config) {
-      // No save found — use refresh to load default
-      alert(`No save in slot ${slot}, loading default.`);
-      refresh();  // reset to default
-      return;
-    }
-    try {
-      const saved = JSON.parse(config);
-      for (let prop in saved) {
-        doublePendulum[prop] = saved[prop];
+    /**
+     * Loads a pendulum configuration from localStorage.
+     * @param {number} slot - The load slot number (1 or 2).
+     */
+    function loadConfig(slot) {
+      totalTicks = 0; // Reset ticks on refresh
+      ticksCounter.innerText = `Ticks: ${totalTicks}`;
+      let config = localStorage.getItem(`pendulumSave${slot}`);
+      if (!config) {
+        console.log(`No save in slot ${slot}, loading default.`);
+        refresh(); // reset to default
+        return;
+      }
+      try {
+        const saved = JSON.parse(config);
+        for (let prop in saved) {
+          doublePendulum[prop] = saved[prop];
+        }
+
+        // If loading from slot 2, update savedPendulumState2
+        if (slot === 2) {
+            savedPendulumState2 = saved;
+        }
+
+        // Restore scale settings
+        doublePendulum.width = 100;
+        doublePendulum.height = (100 * innerHeight) / innerWidth;
+        doublePendulum.x0 = (saved.x0 / saved.width) * doublePendulum.width;
+        doublePendulum.y0 = (saved.y0 / saved.height) * doublePendulum.height;
+
+        canvas.setAttribute(
+          "viewBox",
+          `0 0 ${doublePendulum.width} ${doublePendulum.height}`
+        );
+
+        tracer.clearPoints();
+        upperGraph.clearPoints();
+      } catch (e) {
+        console.error("Failed to load configuration:", e);
+        refresh(); // fallback
       }
 
-      // Restore scale settings
-      doublePendulum.width = 100;
-      doublePendulum.height = (100 * innerHeight) / innerWidth;
-      doublePendulum.x0 = (saved.x0 / saved.width) * doublePendulum.width;
-      doublePendulum.y0 = (saved.y0 / saved.height) * doublePendulum.height;
-
-      canvas.setAttribute(
-        "viewBox",
-        `0 0 ${doublePendulum.width} ${doublePendulum.height}`
-      );
-
-      tracer.clearPoints();
-      upperGraph.clearPoints();
-    } catch (e) {
-      alert("Failed to load configuration.");
-      refresh(); // fallback
+      startTime = Date.now();
+      pausedTime = 0;
+      pauseStart = Date.now(); // Reset timer to paused
+      clearInterval(animation);
+      animation = null;
+      animationToggleButton.innerHTML = ">";
+      drawPendulum();
     }
 
-    startTime = Date.now();
-    pausedTime = 0;
-    pauseStart = Date.now(); // Reset timer to paused
-    clearInterval(animation);
-    animation = null;
-    animationToggleButton.innerHTML = ">";
-    drawPendulum();
+    /**
+     * Loads saved configuration for slot 2 specifically for the 'Pause on Find' feature.
+     * This is called when the 'Pause on Find' checkbox is toggled on.
+     */
+    function loadSavedConfig2ForPause() {
+        if (savedPendulumState2 === null) {
+            const config = localStorage.getItem('pendulumSave2');
+            if (config) {
+                try {
+                    savedPendulumState2 = JSON.parse(config);
+                    console.log("Loaded Save 2 config for Pause on Find.");
+                } catch (e) {
+                    console.error("Error parsing Save 2 config for Pause on Find:", e);
+                    savedPendulumState2 = null;
+                }
+            } else {
+                console.log("No Save 2 config found for Pause on Find.");
+            }
+        }
+    }
 
-  }
 
     function handleHold(clickX, clickY) {
       const { x0, y0, baseRad, r0, r1 } = doublePendulum;
@@ -905,6 +1027,8 @@
       if ((clickX - x0) ** 2 + (clickY - y0) ** 2 < 2.25 * baseRad ** 2) {
         tracer.clearPoints();
         doublePendulum.holdBase();
+        totalTicks = 0; // Reset ticks on refresh
+        ticksCounter.innerText = `Ticks: ${totalTicks}`;
       }
       if (
         (clickX - upperBob.x) ** 2 + (clickY - upperBob.y) ** 2 <
@@ -914,6 +1038,8 @@
         animation = null;
         tracer.clearPoints();
         doublePendulum.holdUpperBob();
+        totalTicks = 0; // Reset ticks on refresh
+        ticksCounter.innerText = `Ticks: ${totalTicks}`;
       }
       if (
         (clickX - lowerBob.x) ** 2 + (clickY - lowerBob.y) ** 2 <
@@ -923,6 +1049,8 @@
         animation = null;
         tracer.clearPoints();
         doublePendulum.holdLowerBob();
+        totalTicks = 0; // Reset ticks on refresh
+        ticksCounter.innerText = `Ticks: ${totalTicks}`;
       }
     }
 
@@ -942,12 +1070,16 @@
     }
 
     function handleDrop() {
-      if (!animation)
-      {
-        animation = null;
-        animationToggleButton.innerHTML = ">";
-        startTime = Date.now();
-        pauseStart = Date.now(); // Timer starts paused
+      if (!animation) {
+        // If animation is null, it means it was paused manually or by 'pause on find'
+        // We want to keep it paused and update the timer state
+        animation = null; // Ensure it remains null
+        animationToggleButton.innerHTML = ">"; // Show play button
+        // If it was paused, pauseStart should already be set.
+        // If it was just dropped after being held, set pauseStart to now.
+        if (pauseStart === null) { // If it was running before hold, now it's paused.
+            pauseStart = Date.now();
+        }
       }
       doublePendulum.dropUpperBob();
       doublePendulum.dropLowerBob();
@@ -996,9 +1128,7 @@
     window.addEventListener("keyup", (e) => {
       if (e.keyCode == 32 || e.key == " ") animationToggle();
     });
-    let startTime = Date.now();
-    let pausedTime = 0;
-    let pauseStart = Date.now(); // Initially paused
+
 
     function updateTimer() {
       let elapsed;
@@ -1009,16 +1139,23 @@
       }
 
       const totalSeconds = Math.floor(elapsed / 1000);
-      const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-      const secs = String(totalSeconds % 60).padStart(2, '0');
+      const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
+        2,
+        "0"
+      );
+      const mill = String(Math.round(elapsed % 1000, 3)).padStart(1, "0");
+
+      const secs = String(totalSeconds % 60).padStart(2, "0");
 
       document.getElementById("runtime-timer").innerText =
-        `${hrs}hrs, ${mins}min, ${secs}sec`;
+        `${hrs}hrs, ${mins}min, ${secs}sec ${mill}mill`;
     }
 
     setInterval(updateTimer, 1000);
-
+    updateTimer();
+    tracer.setMAX(10000)
+    drawPendulum();
 
   </script>
 </html>
