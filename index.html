@@ -78,157 +78,303 @@
         margin-right: 10px;
         transform: scale(1.5, 1.5);
       }
-      .menu {
+      
+      /* New Menu Styles */
+      .menu-container {
         position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background-color: rgba(18, 18, 18, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid #333;
+        z-index: 1000;
+        transition: transform 0.3s ease;
+      }
+      
+      .menu-main {
         display: flex;
-        flex-direction: column;
-        font-size: 12pt;
         align-items: center;
-        font-weight: bolder;
-        font-family: "Courier New", Courier, monospace;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #909090;
-        transition: 0.5s all;
-        z-index: 1000; /* Ensure menu is on top */
-      }
-      .menu * {
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .menu span,
-      a,
-      button {
-        text-decoration: none;
-        border: none;
-        background-color: transparent;
-        margin-bottom: 5px;
-        transition: 0.1s all;
-        color: inherit;
-      }
-      .menu span:hover,
-      .menu a:hover,
-      .menu button:hover {
-        color: white;
-      }
-      #pause {
-        font-weight: bolder;
-        font-size: 5pt;
-        transform: scale(2, 2);
-        margin-left: 10px;
-        margin-right: 10px;
-        white-space: nowrap;
-      }
-      .masses,
-      .toggles {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 65vw;
         justify-content: space-between;
+        padding: 10px 20px;
+        min-height: 50px;
       }
-      .masses .mass {
+      
+      .menu-section {
         display: flex;
-      }
-      .masses .mass span {
-        font-size: 12pt;
-        white-space: nowrap;
-      }
-
-      /* New styles for numerical inputs */
-      .numerical-inputs-container {
-        display: flex;
-        flex-direction: column; 
         align-items: center;
+        gap: 15px;
+      }
+      
+      .menu-section.left {
+        flex: 0 0 auto;
+      }
+      
+      .menu-section.center {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      
+      .menu-section.right {
+        flex: 0 0 auto;
+      }
+      
+      .menu-button {
+        background: none;
+        border: none;
+        color: #909090;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      
+      .menu-button:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.1);
+      }
+      
+      .menu-button.active {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .menu-button.primary {
+        background-color: #0066cc;
+        color: white;
+        padding: 8px 16px;
+      }
+      
+      .menu-button.primary:hover {
+        background-color: #0052a3;
+      }
+      
+      #pause {
+        font-size: 20px;
+        padding: 8px 16px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+      }
+      
+      #pause:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .menu-dropdown {
+        position: relative;
+        display: inline-block;
+      }
+      
+      .dropdown-content {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background-color: rgba(33, 33, 33, 0.98);
+        backdrop-filter: blur(10px);
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 10px;
         margin-top: 5px;
-        margin-bottom: 5px;
+        display: none;
+        min-width: 200px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
       }
-
-      .numerical-inputs-container .setting-input {
+      
+      .dropdown-content.show {
+        display: block;
+      }
+      
+      .dropdown-section {
+        margin-bottom: 15px;
+      }
+      
+      .dropdown-section:last-child {
+        margin-bottom: 0;
+      }
+      
+      .dropdown-title {
+        color: #666;
+        font-size: 11px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+        letter-spacing: 1px;
+      }
+      
+      .dropdown-item {
+        display: block;
+        padding: 5px 10px;
+        color: #909090;
+        text-decoration: none;
+        border-radius: 3px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      
+      .dropdown-item:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.1);
+      }
+      
+      .dropdown-item label {
+        cursor: pointer;
         display: flex;
-        align-items: center; 
-        margin-bottom: 5px;
-        color: #909090; 
+        align-items: center;
       }
-
-      .numerical-inputs-container .setting-input label {
-        margin-right: 8px;
-        font-size: 10pt; 
-        white-space: nowrap;
+      
+      .preset-group {
+        display: flex;
+        gap: 5px;
+        margin: 5px 0;
       }
-
-      .numerical-inputs-container .setting-input input[type="number"] {
-        width: 65px; 
-        padding: 3px 5px;
+      
+      .preset-button {
+        padding: 5px 10px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid #444;
+        border-radius: 3px;
+        color: #909090;
+        cursor: pointer;
+        font-size: 11px;
+        transition: all 0.2s ease;
+      }
+      
+      .preset-button:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .preset-button.active {
+        color: white;
+        background-color: #0066cc;
+        border-color: #0066cc;
+      }
+      
+      .custom-input {
+        width: 100%;
+        padding: 5px;
         background-color: #333;
         color: white;
         border: 1px solid #555;
         border-radius: 3px;
         font-family: "Courier New", Courier, monospace;
-        font-size: 10pt;
-        -moz-appearance: textfield; /* Firefox */
+        font-size: 11px;
+        margin-top: 5px;
       }
-      .numerical-inputs-container .setting-input input[type="number"]::-webkit-outer-spin-button,
-      .numerical-inputs-container .setting-input input[type="number"]::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
+      
+      .mass-control {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 5px 0;
       }
-
-
+      
+      .mass-control span {
+        color: #909090;
+        font-size: 12px;
+      }
+      
+      .mass-control button {
+        width: 24px;
+        height: 24px;
+        border: 1px solid #444;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #909090;
+        border-radius: 3px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s ease;
+      }
+      
+      .mass-control button:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .save-load-buttons {
+        display: flex;
+        gap: 5px;
+        margin: 5px 0;
+      }
+      
+      .save-load-buttons button {
+        flex: 1;
+        padding: 5px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid #444;
+        border-radius: 3px;
+        color: #909090;
+        cursor: pointer;
+        font-size: 11px;
+        transition: all 0.2s ease;
+      }
+      
+      .save-load-buttons button:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      /* Mobile Menu Toggle */
+      .mobile-menu-toggle {
+        display: none;
+        font-size: 24px;
+        padding: 5px 10px;
+        color: #909090;
+        background: none;
+        border: none;
+        cursor: pointer;
+      }
+      
+      @media only screen and (max-width: 768px) {
+        .menu-main {
+          padding: 10px;
+        }
+        
+        .menu-section.center {
+          display: none;
+        }
+        
+        .menu-section.right {
+          display: none;
+        }
+        
+        .mobile-menu-toggle {
+          display: block;
+        }
+        
+        .menu-button {
+          font-size: 12px;
+          padding: 6px 10px;
+        }
+        
+        #pause {
+          font-size: 16px;
+          padding: 6px 12px;
+        }
+        
+        .dropdown-content {
+          position: fixed;
+          top: 60px;
+          left: 10px;
+          right: 10px;
+          max-width: none;
+        }
+      }
+      
+      /* Keep existing styles for the rest of the elements */
       @media only screen and (min-width: 768px) {
         line {
           stroke-width: 0.3;
         }
         path {
           stroke-width: 0.1;
-        }
-        .menu {
-          flex-direction: row;
-          width: 100%;
-          justify-content: space-around;
-        }
-        .menu span,
-        a,
-        button {
-          font-size: 20pt;
-          margin-left: 10px;
-          margin-right: 10px;
-        }
-        #toggle {
-          display: none;
-        }
-        #pause {
-          transform: scale(5, 5);
-        }
-        .masses,
-        .toggles {
-          width: auto;
-        }
-        .toggles {
-          align-items: flex-start;
-        }
-        .masses .mass span {
-          font-size: 14pt;
-        }
-
-        /* Responsive adjustments for numerical inputs */
-        .numerical-inputs-container {
-          flex-direction: row; 
-          justify-content: center; 
-          width: auto; 
-        }
-        .numerical-inputs-container .setting-input {
-          margin-bottom: 0;
-          margin-left: 8px; /* Reduced margin for tighter packing */
-          margin-right: 8px;
-        }
-        .numerical-inputs-container .setting-input label {
-          font-size: 12pt; 
-        }
-        .numerical-inputs-container .setting-input input[type="number"] {
-           font-size: 12pt;
-           width: 70px;
         }
       }
 
@@ -271,123 +417,212 @@
       <circle id="lower_bob" />
       <path id="tracer" />
     </svg>
-    <div class="menu">
-      <a href="/" id="home">⌂</a>
-      <a href="https://github.com/theabbie/DoublePendulum" id="github"
-        >GITHUB</a
-      >
-      <button id="pause">| |</button>
-      <span id="reset" onclick="loadConfig(1)">RESET</span>
-      <div class="toggles">
-        <span id="trace">
-          <input
-            type="checkbox"
-            onchange="tracer.setActive(this.checked)"
-            id="resetbox"
-            checked
-          /><label for="resetbox">SHOW TRACE?</label>
-        </span>
-        <span id="graph">
-          <input
-            type="checkbox"
-            onchange="upperGraph.setActive(this.checked)"
-            id="graphbox"
-            checked
-          /><label for="graphbox">SHOW GRAPH?</label>
-        </span>
-      </div>
-      <div class="toggles">
-        <span>
-          <input
-            type="checkbox"
-            onchange="pauseOnFindEnabled = this.checked; if (this.checked) loadSavedConfig2ForPause();"
-            id="pauseOnFindBox"
-          /><label for="pauseOnFindBox">PAUSE ON FIND 2?</label>
-        </span>
-        <span id="persist">
-          <input
-            type="checkbox"
-            onchange="tracer.setMAX(this.checked ? 10000 : 500)"
-            id="persistbox"
-          /><label for="persistbox">PERSIST TRACE?</label>
-        </span>
-        <span id="smoothen">
-          <input
-            type="checkbox"
-            onchange="tracer.smoothen=this.checked"
-            id="smoothenbox"
-          /><label for="smoothenbox">SMOOTHEN TRACE?</label>
-        </span>
-      </div>
-      <div class="toggles">
-        <span id="gravity">
-          <input
-            type="checkbox"
-            onchange="doublePendulum.setGravity(this.checked ? 0.1 : 0)"
-            id="gravitybox"
-            checked
-          /><label for="gravitybox">GRAVITY?</label>
-        </span>
-        <span id="showPendulumToggle"> <input
-            type="checkbox"
-            onchange="togglePendulum(this.checked)"
-            id="showPendulumBox" checked
-          /><label for="showPendulumBox">SHOW PENDULUM?</label>
-        </span>
-        <span>
-          <input
-            type="checkbox"
-            id="lockLengthBox"
-            onchange="lockLengths = this.checked"
-            checked
-          />
-          <label for="lockLengthBox">LOCK ROPE LENGTHS?</label>
-        </span>
-      </div>
-      <div class="masses">
-        <span class="mass">
-          <span onclick="doublePendulum.decreaseUpperMass()">-</span>
-          <span>UPPER MASS</span>
-          <span onclick="doublePendulum.increaseUpperMass()">+</span>
-        </span>
-        <span class="mass">
-          <span onclick="doublePendulum.decreaseLowerMass()">-</span>
-          <span>LOWER MASS</span>
-          <span onclick="doublePendulum.increaseLowerMass()">+</span>
-        </span>
-      </div>
-      <span class="speed">
-        <span onclick="doublePendulum.decreaseSpeed()">-</span>
-        <span>SPEED</span>
-        <span onclick="doublePendulum.increaseSpeed()">+</span>
-      </span>
-
-      <div class="numerical-inputs-container">
-        <div class="setting-input">
-          <label for="dtInput" title="Simulation time step (delta time). Smaller is more accurate but computationally intensive.">DT:</label>
-          <input type="number" id="dtInput" step="0.001" value="0.1">
+    
+    <div class="menu-container" id="menuContainer">
+      <div class="menu-main">
+        <div class="menu-section left">
+          <a href="/" class="menu-button">⌂</a>
+          <button id="pause" class="menu-button">▶</button>
+          <button onclick="loadConfig(1)" class="menu-button">RESET</button>
         </div>
-        <div class="setting-input">
-          <label for="errorPercentageInput" title="Error threshold (0.0 to 1.0) for 'Pause on Find 2'. E.g., 0.01 means 1% difference.">ERR%:</label>
-          <input type="number" id="errorPercentageInput" step="0.001" value="0.01" min="0" max="1">
+        
+        <div class="menu-section center">
+          <!-- Simulation Controls -->
+          <div class="menu-dropdown">
+            <button class="menu-button" onclick="toggleDropdown('simulationDropdown')">SIMULATION ▼</button>
+            <div id="simulationDropdown" class="dropdown-content">
+              <div class="dropdown-section">
+                <div class="dropdown-title">Time Step (DT)</div>
+                <div class="preset-group">
+                  <button class="preset-button" onclick="setDTPreset(0.05, this)">Slow</button>
+                  <button class="preset-button active" onclick="setDTPreset(0.1, this)">Normal</button>
+                  <button class="preset-button" onclick="setDTPreset(0.2, this)">Fast</button>
+                </div>
+                <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-1.0)" step="0.001" min="0.001" max="1.0">
+              </div>
+              
+              <div class="dropdown-section">
+                <div class="dropdown-title">Error Threshold</div>
+                <div class="preset-group">
+                  <button class="preset-button" onclick="setErrorPreset(0.001, this)">Exact</button>
+                  <button class="preset-button active" onclick="setErrorPreset(0.01, this)">Close</button>
+                  <button class="preset-button" onclick="setErrorPreset(0.05, this)">Loose</button>
+                </div>
+                <input type="number" class="custom-input" id="errorPercentageInput" placeholder="Custom (0.0-1.0)" step="0.001" min="0" max="1">
+              </div>
+              
+              <div class="dropdown-section">
+                <div class="dropdown-item">
+                  <label>
+                    <input type="checkbox" id="pauseOnFindBox" onchange="pauseOnFindEnabled = this.checked; if (this.checked) loadSavedConfig2ForPause();">
+                    Pause on Find 2
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Display Options -->
+          <div class="menu-dropdown">
+            <button class="menu-button" onclick="toggleDropdown('displayDropdown')">DISPLAY ▼</button>
+            <div id="displayDropdown" class="dropdown-content">
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" checked id="showPendulumBox" onchange="togglePendulum(this.checked)">
+                  Show Pendulum
+                </label>
+              </div>
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" checked id="resetbox" onchange="tracer.setActive(this.checked)">
+                  Show Trace
+                </label>
+              </div>
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" checked id="graphbox" onchange="upperGraph.setActive(this.checked)">
+                  Show Graph
+                </label>
+              </div>
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" id="persistbox" onchange="tracer.setMAX(this.checked ? 10000 : 500)">
+                  Persist Trace
+                </label>
+              </div>
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" id="smoothenbox" onchange="tracer.smoothen=this.checked">
+                  Smoothen Trace
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Physics Options -->
+          <div class="menu-dropdown">
+            <button class="menu-button" onclick="toggleDropdown('physicsDropdown')">PHYSICS ▼</button>
+            <div id="physicsDropdown" class="dropdown-content">
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" checked id="gravitybox" onchange="doublePendulum.setGravity(this.checked ? 0.1 : 0)">
+                  Gravity
+                </label>
+              </div>
+              <div class="dropdown-item">
+                <label>
+                  <input type="checkbox" checked id="lockLengthBox" onchange="lockLengths = this.checked">
+                  Lock Rope Lengths
+                </label>
+              </div>
+              
+              <div class="dropdown-section">
+                <div class="dropdown-title">Mass Controls</div>
+                <div class="mass-control">
+                  <button onclick="doublePendulum.decreaseUpperMass()">-</button>
+                  <span>Upper Mass</span>
+                  <button onclick="doublePendulum.increaseUpperMass()">+</button>
+                </div>
+                <div class="mass-control">
+                  <button onclick="doublePendulum.decreaseLowerMass()">-</button>
+                  <span>Lower Mass</span>
+                  <button onclick="doublePendulum.increaseLowerMass()">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
+        
+        <div class="menu-section right">
+          <button onclick="shareConfig()" class="menu-button">SHARE</button>
+          <div class="menu-dropdown">
+            <button class="menu-button" onclick="toggleDropdown('saveDropdown')">SAVE/LOAD ▼</button>
+            <div id="saveDropdown" class="dropdown-content">
+              <div class="dropdown-section">
+                <div class="dropdown-title">Slot 1</div>
+                <div class="save-load-buttons">
+                  <button onclick="saveConfig(1)">💾 Save</button>
+                  <button onclick="loadConfig(1)">📂 Load</button>
+                </div>
+              </div>
+              <div class="dropdown-section">
+                <div class="dropdown-title">Slot 2</div>
+                <div class="save-load-buttons">
+                  <button onclick="saveConfig(2)">💾 Save</button>
+                  <button onclick="loadConfig(2)">📂 Load</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <a href="https://github.com/theabbie/DoublePendulum" class="menu-button">GITHUB</a>
+        </div>
+        
+        <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
       </div>
-
-      <span id="share" onclick="shareConfig()">SHARE</span>
-      <div class="toggles">
-        <span onclick="saveConfig(1)">💾1</span>
-        <span onclick="loadConfig(1)">📂1</span>
-        <span onclick="saveConfig(2)">💾2</span>
-        <span onclick="loadConfig(2)">📂2</span>
-      </div>
-
-      <span id="toggle" onclick="toggleMenu()"> ☰ </span>
     </div>
+    
     <div id="runtime-timer">00hrs, 00min, 00sec 0mill</div>
     <div id="ticks-counter">Ticks: 0</div>
   </body>
   <script>
-    const menu = document.querySelector(".menu");
+    // Menu functionality
+    function toggleDropdown(dropdownId) {
+      const dropdown = document.getElementById(dropdownId);
+      const allDropdowns = document.querySelectorAll('.dropdown-content');
+      
+      allDropdowns.forEach(d => {
+        if (d !== dropdown) {
+          d.classList.remove('show');
+        }
+      });
+      
+      dropdown.classList.toggle('show');
+    }
+    
+    function toggleMobileMenu() {
+      const centerSection = document.querySelector('.menu-section.center');
+      const rightSection = document.querySelector('.menu-section.right');
+      
+      if (centerSection.style.display === 'none' || !centerSection.style.display) {
+        centerSection.style.display = 'flex';
+        rightSection.style.display = 'flex';
+      } else {
+        centerSection.style.display = 'none';
+        rightSection.style.display = 'none';
+      }
+    }
+    
+    // Close dropdowns when clicking outside
+    window.addEventListener('click', function(e) {
+      if (!e.target.matches('.menu-button') && !e.target.closest('.dropdown-content')) {
+        const dropdowns = document.querySelectorAll('.dropdown-content');
+        dropdowns.forEach(d => d.classList.remove('show'));
+      }
+    });
+    
+    // DT Preset handlers
+    function setDTPreset(value, button) {
+      // Remove active class from all preset buttons in this group
+      button.parentElement.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+      button.classList.add('active');
+      
+      // Set the value
+      doublePendulum.dt = value;
+      document.getElementById('dtInput').value = value.toFixed(5);
+    }
+    
+    // Error Preset handlers
+    function setErrorPreset(value, button) {
+      // Remove active class from all preset buttons in this group
+      button.parentElement.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+      button.classList.add('active');
+      
+      // Set the value
+      acceptableErrorPercentage = value;
+      document.getElementById('errorPercentageInput').value = value.toFixed(3);
+    }
+    
+    // Original code starts here with modifications
     const shareButton = document.querySelector("#share");
     const gravityButton = document.querySelector("#gravitybox");
     const animationToggleButton = document.querySelector("#pause");
@@ -988,16 +1223,8 @@
       } else {
         clearInterval(animation);
         animation = null;
-        animationToggleButton.innerHTML = ">";
+        animationToggleButton.innerHTML = "▶";
         pauseStart = Date.now();
-      }
-    }
-
-    function toggleMenu() {
-      if (menu.style.transform == "translate(-50%, -97%)" || menu.style.transform == "") {
-        menu.style.transform = "translate(-50%, 0%)";
-      } else {
-        menu.style.transform = "translate(-50%, -97%)";
       }
     }
 
@@ -1113,7 +1340,7 @@
         clearInterval(animation);
         animation = null;
       }
-      animationToggleButton.innerHTML = ">";
+      animationToggleButton.innerHTML = "▶";
       drawPendulum();
     }
     
@@ -1215,24 +1442,32 @@
     }
 
     // Event listeners for new inputs
-    dtInput.addEventListener('change', function() {
+    dtInput.addEventListener('input', function() {
         const newDt = parseFloat(this.value);
         if (!isNaN(newDt) && newDt > 0) {
             doublePendulum.dt = newDt;
+            // Clear active state from preset buttons
+            document.querySelectorAll('.preset-button').forEach(b => {
+              if (b.onclick && b.onclick.toString().includes('setDTPreset')) {
+                b.classList.remove('active');
+              }
+            });
             console.log("dt changed to: " + doublePendulum.dt);
-        } else {
-            this.value = doublePendulum.dt.toFixed(5); // Reset to current valid if input is bad
         }
     });
 
-    errorPercentageInput.addEventListener('change', function() {
+    errorPercentageInput.addEventListener('input', function() {
         const newErrorPercentage = parseFloat(this.value);
         // Allow 0 for exact match, up to 1 (100%)
         if (!isNaN(newErrorPercentage) && newErrorPercentage >= 0 && newErrorPercentage <= 1) { 
             acceptableErrorPercentage = newErrorPercentage;
+            // Clear active state from preset buttons
+            document.querySelectorAll('.preset-button').forEach(b => {
+              if (b.onclick && b.onclick.toString().includes('setErrorPreset')) {
+                b.classList.remove('active');
+              }
+            });
             console.log("acceptableErrorPercentage changed to: " + acceptableErrorPercentage);
-        } else {
-            this.value = acceptableErrorPercentage.toFixed(3); // Reset to current valid
         }
     });
 
@@ -1282,11 +1517,10 @@
         }
     });
 
-    Array.from(menu.children).forEach((option) => {
-      option.addEventListener("click", (e) => e.stopPropagation());
-      option.addEventListener("mousedown", (e) => e.stopPropagation()); // Prevent canvas interaction
-      option.addEventListener("touchstart", (e) => e.stopPropagation());// Prevent canvas interaction
-      // mouseup and touchend propagation is fine for menu items themselves
+    // Prevent dropdown clicks from interfering with pendulum
+    document.querySelectorAll('.dropdown-content').forEach(dropdown => {
+      dropdown.addEventListener("mousedown", (e) => e.stopPropagation());
+      dropdown.addEventListener("touchstart", (e) => e.stopPropagation());
     });
 
     animationToggleButton.addEventListener("click", animationToggle);
@@ -1325,15 +1559,6 @@
     tracer.setMAX(document.getElementById('persistbox').checked ? 10000 : 500); // Initial persist trace
     togglePendulum(document.getElementById('showPendulumBox').checked); // Initial show pendulum
     document.getElementById('lockLengthBox').checked = lockLengths; // Initial lock lengths
-    
-    // Ensure menu is initially visible or in its default state on small screens
-    if (window.innerWidth < 768) {
-        menu.style.transform = "translate(-50%, 0%)"; // Default open on mobile
-        // Or to make it initially collapsed:
-        // menu.style.transform = "translate(-50%, -97%)";
-        // toggleMenu(); // Call to set initial state based on its logic if needed
-    }
-
 
   </script>
 </html>
