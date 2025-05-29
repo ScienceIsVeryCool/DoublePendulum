@@ -434,21 +434,21 @@
               <div class="dropdown-section">
                 <div class="dropdown-title">Time Step (DT)</div>
                 <div class="preset-group">
-                  <button class="preset-button" onclick="setDTPreset(0.05, this)">Slow</button>
-                  <button class="preset-button active" onclick="setDTPreset(0.1, this)">Normal</button>
-                  <button class="preset-button" onclick="setDTPreset(0.2, this)">Fast</button>
+                  <button class="preset-button" onclick="setDTPreset(0.1, this)">Slow</button>
+                  <button class="preset-button active" onclick="setDTPreset(0.5, this)">Normal</button>
+                  <button class="preset-button" onclick="setDTPreset(1.5, this)">Fast</button>
                 </div>
-                <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-1.0)" step="0.001" min="0.001" max="1.0">
+                <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-10.0)" step="0.01" min="0.01" max="10.0">
               </div>
               
               <div class="dropdown-section">
                 <div class="dropdown-title">Error Threshold</div>
                 <div class="preset-group">
-                  <button class="preset-button" onclick="setErrorPreset(0.001, this)">Exact</button>
-                  <button class="preset-button active" onclick="setErrorPreset(0.01, this)">Close</button>
-                  <button class="preset-button" onclick="setErrorPreset(0.05, this)">Loose</button>
+                  <button class="preset-button" onclick="setErrorPreset(0.01, this)">Exact</button>
+                  <button class="preset-button active" onclick="setErrorPreset(0.1, this)">Close</button>
+                  <button class="preset-button" onclick="setErrorPreset(0.5, this)">Loose</button>
                 </div>
-                <input type="number" class="custom-input" id="errorPercentageInput" placeholder="Custom (0.0-1.0)" step="0.001" min="0" max="1">
+                <input type="number" class="custom-input" id="errorPercentageInput" placeholder="Custom (0.0-1.0)" step="0.01" min="0" max="1">
               </div>
               
               <div class="dropdown-section">
