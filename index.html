@@ -463,9 +463,10 @@
               <div class="dropdown-section">
                 <div class="dropdown-title">Time Step (DT)</div>
                 <div class="preset-group">
+                  <button class="preset-button" onclick="setDTPreset(0.05, this)">Extra Slow</button>
                   <button class="preset-button" onclick="setDTPreset(0.1, this)">Slow</button>
                   <button class="preset-button active" onclick="setDTPreset(0.5, this)">Normal</button>
-                  <button class="preset-button" onclick="setDTPreset(1.5, this)">Fast</button>
+                  <button class="preset-button" onclick="setDTPreset(1.25, this)">Fast (Unstable)</button>
                 </div>
                 <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-10.0)" step="0.01" min="0.01" max="10.0">
               </div>
@@ -483,8 +484,8 @@
               <div class="dropdown-section">
                 <div class="dropdown-item">
                   <label>
-                    <input type="checkbox" id="pauseOnFindBox" onchange="pauseOnFindEnabled = this.checked; if (this.checked) loadSavedConfig2ForPause();">
-                    Pause on Find 2
+                    <input type="checkbox" id="pauseOnFindBox" onchange="pauseOnFindEnabled = this.checked; setInitialPendulumStateForPause();">
+                    Pause on Find Origin
                   </label>
                 </div>
               </div>
@@ -639,7 +640,7 @@
       
       // Set the value
       doublePendulum.dt = value;
-      document.getElementById('dtInput').value = value.toFixed(5);
+      document.getElementById('dtInput').value = value.toFixed(2);
     }
     
     // Error Preset handlers
@@ -702,9 +703,9 @@
     let totalTicks = 0; 
     let animation;
     let lockLengths = true;
-    let pauseOnFindEnabled = false; // For "Pause on Find 2" checkbox
-    let initialPendulumState = null; 
-    let acceptableErrorPercentage = 0.01;
+    let pauseOnFindEnabled = false; // For "Pause on Find Origin" checkbox
+    let initialPendulumState = null; // Stores the state at tick 0 or last reset for "Pause on Find Origin"
+    let acceptableErrorPercentage = 0.1;
     let startTime = Date.now();
     let pausedTime = 0;
     let pauseStart = Date.now();
@@ -1128,7 +1129,7 @@
       
       let initialDt = parseFloat(dtInput.value);
       if (isNaN(initialDt) || initialDt <= 0) {
-        initialDt = 0.1; // Default dt
+        initialDt = 0.5; // Default dt
       }
 
       doublePendulum = new DoublePendulum({
@@ -1196,6 +1197,7 @@
       upperGraph.clearPoints();
       resetAllSpinCounters(); // Reset and initialize spin counters and previous angles
       drawPendulum(); 
+      setInitialPendulumStateForPause(); // Set initial state after refresh/load
     }
 
 
@@ -1255,7 +1257,29 @@
       return Math.sqrt(dx * dx + dy * dy);
     }
 
-    function checkPauseOnFind() { // Renamed from checkPauseOnReturn
+    function setInitialPendulumStateForPause() {
+        if (pauseOnFindEnabled) {
+            // Store the current state as the initial (origin) state
+            initialPendulumState = { 
+                x0: doublePendulum.x0,
+                y0: doublePendulum.y0,
+                ang0: doublePendulum.ang0,
+                ang1: doublePendulum.ang1, 
+                l0: doublePendulum.l0,
+                l1: doublePendulum.l1,
+                r0: doublePendulum.r0,
+                r1: doublePendulum.r1,
+                // Only position relevant parameters for "Pause on Find Origin"
+                width: doublePendulum.width,
+                height: doublePendulum.height
+            };
+            console.log("Initial pendulum state (origin) set for 'Pause on Find Origin'.");
+        } else {
+            initialPendulumState = null; // Clear if checkbox is unchecked
+        }
+    }
+
+    function checkPauseOnFind() { 
       if (!pauseOnFindEnabled || !initialPendulumState) {
         return; 
       }
@@ -1284,34 +1308,6 @@
       }
     }
     
-    function loadSavedConfig2ForPause() {
-        if (document.getElementById('pauseOnFindBox').checked) {
-            // Try to load config from slot 2 if "Pause on Find 2" is checked
-            const configStr = localStorage.getItem(`pendulumSave2`);
-            if (configStr) {
-                try {
-                    const loadedFullConfig = JSON.parse(configStr);
-                    let savedPendulumData;
-                    if (loadedFullConfig.pendulumState) {
-                        savedPendulumData = loadedFullConfig.pendulumState;
-                    } else {
-                        savedPendulumData = loadedFullConfig;
-                    }
-                    initialPendulumState = { ...savedPendulumData }; // Store this as the target state
-                    console.log("Loaded target state for 'Pause on Find 2' from slot 2.");
-                } catch (e) {
-                    console.error("Failed to load target state from slot 2:", e);
-                    initialPendulumState = null;
-                }
-            } else {
-                console.warn("'Pause on Find 2' checked, but no configuration found in slot 2 to use as target.");
-                initialPendulumState = null; // Ensure it's null if slot 2 is empty
-            }
-        } else {
-            initialPendulumState = null; // Clear if checkbox is unchecked
-        }
-    }
-
 
     function animate() {
       if (!doublePendulum) return;
@@ -1362,7 +1358,8 @@
       drawPendulum();
       tracer.addPoint(lowerBobPos); // Trace the lower bob's path
       drawTracer();
-      checkPauseOnFind(); 
+      if (totalTicks > 200) // Give it some ticks to move away from origin before checking
+        checkPauseOnFind(); 
       totalTicks++; 
       ticksCounter.textContent = `Ticks: ${totalTicks}`; 
     }
@@ -1379,6 +1376,7 @@
         // Reset spin counts and tracking only if starting from tick 0
         if (totalTicks === 0) {
             resetAllSpinCounters(); // This also sets previous angles
+            setInitialPendulumStateForPause(); // Set origin for "Pause on Find Origin"
         }
 
         animation = setInterval(animate, 1000 / doublePendulum.fps);
@@ -1438,11 +1436,6 @@
       };
       const config = JSON.stringify(fullConfig);
       localStorage.setItem(`pendulumSave${slot}`, config);
-       // If saving to slot 2 and "Pause on Find 2" is checked, update initialPendulumState
-      if (slot === 2 && pauseOnFindEnabled) {
-        initialPendulumState = { ...doublePendulum }; // Save current state as target
-        console.log("Updated target state for 'Pause on Find 2' from current state (saved to slot 2).");
-      }
     }
 
     function loadConfig(slot) {
@@ -1468,11 +1461,11 @@
           if (loadedFullConfig.hasOwnProperty('errorPercentage')) {
             acceptableErrorPercentage = loadedFullConfig.errorPercentage;
           } else {
-            acceptableErrorPercentage = 0.01; 
+            acceptableErrorPercentage = 0.1; 
           }
         } else { 
           savedPendulumData = loadedFullConfig;
-          acceptableErrorPercentage = 0.01; 
+          acceptableErrorPercentage = 0.1; 
         }
         
         for (let prop in savedPendulumData) {
@@ -1518,17 +1511,8 @@
       animationToggleButton.innerHTML = PLAY_SYMBOL;
       drawPendulum();
 
-      // If loading slot 2 and "Pause on Find 2" is checked, this becomes the new target state.
-      if (slot === 2 && pauseOnFindEnabled) {
-        initialPendulumState = { ...doublePendulum };
-        console.log("Set target state for 'Pause on Find 2' from loaded slot 2.");
-      } else if (slot !== 2 && pauseOnFindEnabled) {
-        // If another slot was loaded, but pauseOnFind is active, we might need to re-evaluate
-        // or prompt user, or just keep the previously set initialPendulumState from slot 2.
-        // For now, let's assume initialPendulumState is only set by loading slot 2 or saving to slot 2 when active.
-      } else if (!pauseOnFindEnabled) {
-        initialPendulumState = null; // Clear if not relevant
-      }
+      // Set initial pendulum state for "Pause on Find Origin" after loading
+      setInitialPendulumStateForPause();
     }
 
     function handleHold(clickX, clickY) {
@@ -1562,10 +1546,10 @@
       if (isNowHolding) {
         totalTicks = 0; 
         ticksCounter.textContent = `Ticks: ${totalTicks}`;
-        if (pauseOnFindEnabled) {
-            initialPendulumState = null; 
-            console.log("Pendulum dragged, 'Pause on Find 2' target state cleared.");
-        }
+        // Clear initial state if pendulum is dragged, as the origin has effectively changed
+        initialPendulumState = null; 
+        console.log("Pendulum dragged, 'Pause on Find Origin' target state cleared.");
+        
         resetAllSpinCounters(); // Reset spins when holding starts
       }
     }
@@ -1599,6 +1583,8 @@
       doublePendulum.dropUpperBob();
       doublePendulum.dropLowerBob();
       doublePendulum.dropBase();
+      // If "Pause on Find Origin" is enabled, re-set the origin when dropped
+      setInitialPendulumStateForPause();
     }
 
     dtInput.addEventListener('input', function() {
@@ -1717,12 +1703,10 @@
     tracer.setMAX(document.getElementById('persistbox').checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
     togglePendulum(document.getElementById('showPendulumBox').checked);
     document.getElementById('lockLengthBox').checked = lockLengths;
-    // Initialize "Pause on Find 2" state
+    // Initialize "Pause on Find Origin" state
     pauseOnFindEnabled = document.getElementById('pauseOnFindBox').checked;
-    if (pauseOnFindEnabled) {
-        loadSavedConfig2ForPause();
-    }
-
+    // No need to load from slot 2, just set the current state as origin if checkbox is active.
+    setInitialPendulumStateForPause(); 
 
   </script>
 </html>
