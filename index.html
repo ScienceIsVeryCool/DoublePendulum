@@ -434,28 +434,28 @@
               <div class="dropdown-section">
                 <div class="dropdown-title">Time Step (DT)</div>
                 <div class="preset-group">
-                  <button class="preset-button" onclick="setDTPreset(0.1, this)">Slow</button>
-                  <button class="preset-button active" onclick="setDTPreset(0.5, this)">Normal</button>
-                  <button class="preset-button" onclick="setDTPreset(1.5, this)">Fast</button>
+                  <button class="preset-button" onclick="setDTPreset(0.05, this)">Slow</button>
+                  <button class="preset-button active" onclick="setDTPreset(0.1, this)">Normal</button>
+                  <button class="preset-button" onclick="setDTPreset(0.2, this)">Fast</button>
                 </div>
-                <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-10.0)" step="0.01" min="0.01" max="10.0">
+                <input type="number" class="custom-input" id="dtInput" placeholder="Custom (0.001-1.0)" step="0.001" min="0.001" max="1.0">
               </div>
               
               <div class="dropdown-section">
                 <div class="dropdown-title">Error Threshold</div>
                 <div class="preset-group">
-                  <button class="preset-button" onclick="setErrorPreset(0.01, this)">Exact</button>
-                  <button class="preset-button active" onclick="setErrorPreset(0.1, this)">Close</button>
-                  <button class="preset-button" onclick="setErrorPreset(0.5, this)">Loose</button>
+                  <button class="preset-button" onclick="setErrorPreset(0.001, this)">Exact</button>
+                  <button class="preset-button active" onclick="setErrorPreset(0.01, this)">Close</button>
+                  <button class="preset-button" onclick="setErrorPreset(0.05, this)">Loose</button>
                 </div>
-                <input type="number" class="custom-input" id="errorPercentageInput" placeholder="Custom (0.0-1.0)" step="0.01" min="0" max="1">
+                <input type="number" class="custom-input" id="errorPercentageInput" placeholder="Custom (0.0-1.0)" step="0.001" min="0" max="1">
               </div>
               
               <div class="dropdown-section">
                 <div class="dropdown-item">
                   <label>
-                    <input type="checkbox" id="pauseOnFindBox" onchange="pauseOnFindEnabled = this.checked; if (this.checked) loadSavedConfig2ForPause();">
-                    Pause on Find 2
+                    <input type="checkbox" id="pauseOnReturnBox" onchange="pauseOnReturnEnabled = this.checked;">
+                    Pause on Return to Origin
                   </label>
                 </div>
               </div>
@@ -622,7 +622,16 @@
       document.getElementById('errorPercentageInput').value = value.toFixed(3);
     }
     
-    // Original code starts here with modifications
+    // Constants
+    const PLAY_SYMBOL = "▶";
+    const PAUSE_SYMBOL = "| |";
+    const BOB_CLICK_RADIUS_MULTIPLIER = 2.25;
+    const TIMER_UPDATE_INTERVAL = 100; // Update less frequently
+    const GRAPH_SMOOTH_FACTOR = 0.2;
+    const TRACE_DEFAULT_MAX = 500;
+    const TRACE_PERSIST_MAX = 10000;
+    
+    // Cached DOM elements
     const shareButton = document.querySelector("#share");
     const gravityButton = document.querySelector("#gravitybox");
     const animationToggleButton = document.querySelector("#pause");
@@ -634,8 +643,9 @@
     const upperBob = document.querySelector("#upper_bob");
     const lowerBob = document.querySelector("#lower_bob");
     const tracerLine = document.querySelector("#tracer");
-    const pauseOnFindCheckbox = document.getElementById("pauseOnFindBox"); 
+    const pauseOnReturnCheckbox = document.getElementById("pauseOnReturnBox"); 
     const ticksCounter = document.getElementById("ticks-counter"); 
+    const runtimeTimer = document.getElementById("runtime-timer");
 
     // New input element references
     const dtInput = document.getElementById("dtInput");
@@ -644,12 +654,13 @@
     let totalTicks = 0; 
     let animation;
     let lockLengths = true;
-    let pauseOnFindEnabled = false; 
-    let savedPendulumState2 = null; 
-    let acceptableErrorPercentage = 0.01; // Now 'let', default value
+    let pauseOnReturnEnabled = false; 
+    let initialPendulumState = null; 
+    let acceptableErrorPercentage = 0.01;
     let startTime = Date.now();
     let pausedTime = 0;
-    let pauseStart = Date.now(); 
+    let pauseStart = Date.now();
+    let timerInterval = null; 
 
     class DoublePendulum {
       constructor({
@@ -920,10 +931,10 @@
     class Tracer {
       constructor() {
         this.points = [];
-        this.MAX = 500;
+        this.MAX = TRACE_DEFAULT_MAX;
         this.isActive = true;
         this.ctr = 0;
-        this.smooth = 0.2;
+        this.smooth = GRAPH_SMOOTH_FACTOR;
         this.smoothen = false;
       }
 
@@ -1153,39 +1164,37 @@
     }
 
     function getDistance(p1, p2) {
-      return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      return Math.sqrt(dx * dx + dy * dy);
     }
 
-    function checkPauseOnFind() {
-      if (!pauseOnFindEnabled || !savedPendulumState2) {
+    function checkPauseOnReturn() {
+      if (!pauseOnReturnEnabled || !initialPendulumState) {
         return; 
       }
 
       const currentUpperBobPos = doublePendulum.getUpperBob();
       const currentLowerBobPos = doublePendulum.getLowerBob();
       
-      // Create a temporary pendulum from saved state for comparison
-      // Ensure savedPendulumState2 has all necessary properties for constructor
-      const tempDefaultState = { // Provide defaults for any missing properties
-        width: doublePendulum.width, height: doublePendulum.height, x0:0,y0:0,ang0:0,ang1:0,v0:0,v1:0,acc0:0,acc1:0,
-        baseRad:0,l0:1,l1:1,r0:1,r1:1,m0:1,m1:1,g:0.1,massScaleFactor:1.2,speedScaleFactor:1.2,dt:0.1,fps:100
-      };
-      const stateForComparison = { ...tempDefaultState, ...savedPendulumState2, width: doublePendulum.width, height: doublePendulum.height };
+      // Create a temporary pendulum from initial state for comparison
+      const tempPendulum = new DoublePendulum({
+        ...initialPendulumState,
+        width: doublePendulum.width,
+        height: doublePendulum.height
+      });
+      
+      const initialUpperBobPos = tempPendulum.getUpperBob();
+      const initialLowerBobPos = tempPendulum.getLowerBob();
 
+      const errorThreshold = doublePendulum.l0 * acceptableErrorPercentage;
 
-      const dummyPendulum = new DoublePendulum(stateForComparison);
-      const savedUpperBobPos = dummyPendulum.getUpperBob();
-      const savedLowerBobPos = dummyPendulum.getLowerBob();
+      const distUpper = getDistance(currentUpperBobPos, initialUpperBobPos);
+      const distLower = getDistance(currentLowerBobPos, initialLowerBobPos);
 
-      const errorThreshold = doublePendulum.l0 * acceptableErrorPercentage; // Use global variable
-
-      const distUpper = getDistance(currentUpperBobPos, savedUpperBobPos);
-      const distLower = getDistance(currentLowerBobPos, savedLowerBobPos);
-
-      if (distUpper <= errorThreshold && distLower <= errorThreshold) {
+      if (distUpper <= errorThreshold && distLower <= errorThreshold && totalTicks > 0) {
         if (animation) { 
             animationToggle();
-            console.log("PAUSED: Pendulum found Save 2 position!");
         }
       }
     }
@@ -1198,10 +1207,10 @@
       tracer.addPoint(doublePendulum.getLowerBob());
       drawTracer();
 
-      checkPauseOnFind(); 
+      checkPauseOnReturn(); 
 
       totalTicks++; 
-      ticksCounter.innerText = `Ticks: ${totalTicks}`; 
+      ticksCounter.textContent = `Ticks: ${totalTicks}`; 
     }
     
     function animationToggle(e) {
@@ -1214,8 +1223,37 @@
             // Fallback or keep existing doublePendulum.dt if input is bad
             dtInput.value = doublePendulum.dt.toFixed(5); // Correct input if it was bad
         }
+        
+        // Save initial state when starting from tick 0
+        if (totalTicks === 0 && pauseOnReturnEnabled) {
+          initialPendulumState = {
+            width: doublePendulum.width,
+            height: doublePendulum.height,
+            x0: doublePendulum.x0,
+            y0: doublePendulum.y0,
+            ang0: doublePendulum.ang0,
+            ang1: doublePendulum.ang1,
+            v0: doublePendulum.v0,
+            v1: doublePendulum.v1,
+            acc0: doublePendulum.acc0,
+            acc1: doublePendulum.acc1,
+            baseRad: doublePendulum.baseRad,
+            l0: doublePendulum.l0,
+            l1: doublePendulum.l1,
+            r0: doublePendulum.r0,
+            r1: doublePendulum.r1,
+            m0: doublePendulum.m0,
+            m1: doublePendulum.m1,
+            g: doublePendulum.g,
+            massScaleFactor: doublePendulum.massScaleFactor,
+            speedScaleFactor: doublePendulum.speedScaleFactor,
+            dt: doublePendulum.dt,
+            fps: doublePendulum.fps
+          };
+        }
+        
         animation = setInterval(animate, 1000 / doublePendulum.fps);
-        animationToggleButton.innerHTML = "| |";
+        animationToggleButton.innerHTML = PAUSE_SYMBOL;
         if (pauseStart !== null) {
           pausedTime += Date.now() - pauseStart;
           pauseStart = null;
@@ -1223,7 +1261,7 @@
       } else {
         clearInterval(animation);
         animation = null;
-        animationToggleButton.innerHTML = "▶";
+        animationToggleButton.innerHTML = PLAY_SYMBOL;
         pauseStart = Date.now();
       }
     }
@@ -1238,11 +1276,10 @@
     }
 
     function shareConfig() {
-      // Share only pendulum state for simplicity, dt is part of it.
-      // acceptableErrorPercentage is not shared via URL for now.
       window.location.hash = btoa(JSON.stringify(doublePendulum));
-      shareButton.innerHTML = "👆 COPY LINK !!!";
-      setTimeout(() => (shareButton.innerHTML = "SHARE"), 1500);
+      const originalText = shareButton.textContent;
+      shareButton.textContent = "👆 COPY LINK !!!";
+      setTimeout(() => (shareButton.textContent = originalText), 1500);
     }
 
     function saveConfig(slot) {
@@ -1252,27 +1289,20 @@
       };
       const config = JSON.stringify(fullConfig);
       localStorage.setItem(`pendulumSave${slot}`, config);
-      
-      if (slot === 2) {
-        savedPendulumState2 = { ...doublePendulum }; // Store only pendulum part for pauseOnFind
-      }
-      console.log(`Saved to slot ${slot}: dt=${doublePendulum.dt}, err%=${acceptableErrorPercentage}`);
     }
 
     function loadConfig(slot) {
       totalTicks = 0; 
-      ticksCounter.innerText = `Ticks: ${totalTicks}`;
+      ticksCounter.textContent = `Ticks: ${totalTicks}`;
+      initialPendulumState = null; // Clear initial state on load
+      
       let configStr = localStorage.getItem(`pendulumSave${slot}`);
       
       if (!configStr && slot === 1) { // Slot 1 is also used for RESET
-        console.log(`No save in slot ${slot}, resetting to default.`);
         refresh(); 
         return;
       }
       if (!configStr) {
-        console.log(`No save in slot ${slot}.`);
-        // Don't refresh if it's not slot 1 (reset) and no save exists
-        // Keep current state or let refresh be called explicitly by user for other slots.
         return;
       }
 
@@ -1299,10 +1329,6 @@
           }
         }
 
-        if (slot === 2) {
-          savedPendulumState2 = { ...doublePendulum }; 
-        }
-
         // Restore scale settings
         const scaleWidth = 100;
         const scaleHeight = (100 * innerHeight) / innerWidth;
@@ -1323,10 +1349,8 @@
         errorPercentageInput.value = acceptableErrorPercentage.toFixed(3);
         gravityButton.checked = doublePendulum.g !== 0;
 
-
         tracer.clearPoints();
         upperGraph.clearPoints();
-        console.log(`Loaded from slot ${slot}: dt=${doublePendulum.dt}, err%=${acceptableErrorPercentage}`);
 
       } catch (e) {
         console.error("Failed to load configuration from slot " + slot + ":", e);
@@ -1340,73 +1364,45 @@
         clearInterval(animation);
         animation = null;
       }
-      animationToggleButton.innerHTML = "▶";
+      animationToggleButton.innerHTML = PLAY_SYMBOL;
       drawPendulum();
     }
-    
-    function loadSavedConfig2ForPause() {
-        // Only load from localStorage if savedPendulumState2 is not already populated
-        // (e.g., by a direct loadConfig(2) call)
-        if (savedPendulumState2 && Object.keys(savedPendulumState2).length > 0) {
-            console.log("Using in-memory Save 2 config for Pause on Find.");
-            return;
-        }
-
-        const configStr = localStorage.getItem('pendulumSave2');
-        if (configStr) {
-            try {
-                const parsedConfig = JSON.parse(configStr);
-                if (parsedConfig.pendulumState) { // New format
-                    savedPendulumState2 = parsedConfig.pendulumState;
-                } else { // Old format (just pendulum state)
-                    savedPendulumState2 = parsedConfig;
-                }
-                // Clean up potential unwanted properties from the state used for comparison
-                if (savedPendulumState2) {
-                    delete savedPendulumState2.errorPercentage; 
-                    delete savedPendulumState2.acceptableErrorPercentage;
-                }
-                console.log("Loaded Save 2 config for Pause on Find from localStorage.");
-            } catch (e) {
-                console.error("Error parsing Save 2 config for Pause on Find:", e);
-                savedPendulumState2 = null;
-            }
-        } else {
-            console.log("No Save 2 config found in localStorage for Pause on Find.");
-            savedPendulumState2 = null; 
-        }
-    }
-
 
     function handleHold(clickX, clickY) {
       const { x0, y0, baseRad, r0, r1 } = doublePendulum;
       const upperBob = doublePendulum.getUpperBob();
       const lowerBob = doublePendulum.getLowerBob();
-      if ((clickX - x0) ** 2 + (clickY - y0) ** 2 < 2.25 * baseRad ** 2) {
+      
+      const baseRadSq = BOB_CLICK_RADIUS_MULTIPLIER * baseRad * baseRad;
+      const upperBobRadSq = BOB_CLICK_RADIUS_MULTIPLIER * r0 * r0;
+      const lowerBobRadSq = BOB_CLICK_RADIUS_MULTIPLIER * r1 * r1;
+      
+      if ((clickX - x0) ** 2 + (clickY - y0) ** 2 < baseRadSq) {
         tracer.clearPoints();
         doublePendulum.holdBase();
         totalTicks = 0; 
-        ticksCounter.innerText = `Ticks: ${totalTicks}`;
+        ticksCounter.textContent = `Ticks: ${totalTicks}`;
+        initialPendulumState = null;
       }
       if (
-        (clickX - upperBob.x) ** 2 + (clickY - upperBob.y) ** 2 <
-        2.25 * r0 ** 2
+        (clickX - upperBob.x) ** 2 + (clickY - upperBob.y) ** 2 < upperBobRadSq
       ) {
         if (animation) animationToggle(); // Pause before holding
         tracer.clearPoints();
         doublePendulum.holdUpperBob();
         totalTicks = 0; 
-        ticksCounter.innerText = `Ticks: ${totalTicks}`;
+        ticksCounter.textContent = `Ticks: ${totalTicks}`;
+        initialPendulumState = null;
       }
       if (
-        (clickX - lowerBob.x) ** 2 + (clickY - lowerBob.y) ** 2 <
-        2.25 * r1 ** 2
+        (clickX - lowerBob.x) ** 2 + (clickY - lowerBob.y) ** 2 < lowerBobRadSq
       ) {
         if (animation) animationToggle(); // Pause before holding
         tracer.clearPoints();
         doublePendulum.holdLowerBob();
         totalTicks = 0; 
-        ticksCounter.innerText = `Ticks: ${totalTicks}`;
+        ticksCounter.textContent = `Ticks: ${totalTicks}`;
+        initialPendulumState = null;
       }
     }
 
@@ -1452,7 +1448,6 @@
                 b.classList.remove('active');
               }
             });
-            console.log("dt changed to: " + doublePendulum.dt);
         }
     });
 
@@ -1467,7 +1462,6 @@
                 b.classList.remove('active');
               }
             });
-            console.log("acceptableErrorPercentage changed to: " + acceptableErrorPercentage);
         }
     });
 
@@ -1538,27 +1532,24 @@
         elapsed = (Date.now() - startTime) - pausedTime;
       }
 
-      const totalSeconds = Math.max(0,Math.floor(elapsed / 1000));
+      const totalSeconds = Math.max(0, Math.floor(elapsed / 1000));
       const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
-        2,
-        "0"
-      );
-      const mill = String(elapsed % 1000).padStart(3, "0"); // Milliseconds
+      const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+      const mill = String(elapsed % 1000).padStart(3, "0");
       const secs = String(totalSeconds % 60).padStart(2, "0");
 
-      document.getElementById("runtime-timer").innerText =
-        `${hrs}hrs, ${mins}min, ${secs}sec ${mill}mill`;
+      runtimeTimer.textContent = `${hrs}hrs, ${mins}min, ${secs}sec ${mill}mill`;
     }
 
-    setInterval(updateTimer, 50); // Update timer more frequently for smoother ms
+    // Start timer with less frequent updates
+    timerInterval = setInterval(updateTimer, TIMER_UPDATE_INTERVAL);
     
     // Initial setup
     refresh(); // Initialize pendulum and inputs
     animationToggle(); // Start paused
-    tracer.setMAX(document.getElementById('persistbox').checked ? 10000 : 500); // Initial persist trace
-    togglePendulum(document.getElementById('showPendulumBox').checked); // Initial show pendulum
-    document.getElementById('lockLengthBox').checked = lockLengths; // Initial lock lengths
+    tracer.setMAX(document.getElementById('persistbox').checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
+    togglePendulum(document.getElementById('showPendulumBox').checked);
+    document.getElementById('lockLengthBox').checked = lockLengths;
 
   </script>
 </html>
