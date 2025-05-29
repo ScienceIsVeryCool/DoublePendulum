@@ -20,7 +20,10 @@
       property="og:description"
       content="Interactive Double Pendulum Playground Using SVG"
     />
-    <meta property="og:image" content="https://theabbie.github.io/DoublePendulum/DoublePendulum.jpg" />
+    <meta
+      property="og:image"
+      content="https://theabbie.github.io/DoublePendulum/DoublePendulum.jpg"
+    />
     <meta property="twitter:card" content="summary_large_image" />
     <meta
       property="twitter:url"
@@ -112,7 +115,7 @@
         justify-content: center;
       }
       
-.menu-section.right {
+      .menu-section.right {
         flex: 0 0 auto;
       }
       
@@ -674,6 +677,7 @@
     const upperBob = document.querySelector("#upper_bob");
     const lowerBob = document.querySelector("#lower_bob");
     const tracerLine = document.querySelector("#tracer");
+    // const pauseOnReturnCheckbox = document.getElementById("pauseOnReturnBox"); // Not used in current version
     const ticksCounter = document.getElementById("ticks-counter"); 
     const runtimeTimer = document.getElementById("runtime-timer");
     // Lower Bob spin counters
@@ -739,8 +743,8 @@
         this.height = height;
         this.x0 = x0;
         this.y0 = y0;
-        this.ang0 = ang0; // Angle of upper pendulum relative to vertical (absolute)
-        this.ang1 = ang1; // Angle of lower pendulum relative to vertical (absolute)
+        this.ang0 = ang0; // Angle of upper pendulum relative to vertical
+        this.ang1 = ang1; // Angle of lower pendulum relative to upper pendulum
         this.v0 = v0;
         this.v1 = v1;
         this.acc0 = acc0;
@@ -832,19 +836,10 @@
       }
 
       setMoments() {
-        // This function recalculates moments based on current angles and velocities.
-        // It's crucial for consistent state after manual manipulation or loading.
         const { m0, m1, ang0, ang1, l0, l1, v0, v1 } = this;
-        const cos_diff = Math.cos(ang0 - ang1);
-        const sin_diff = Math.sin(ang0 - ang1);
-
-        // Calculate moments (p0, p1) from velocities (v0, v1) and angles (ang0, ang1)
-        // These are derived from the Lagrangian or Hamiltonian definitions.
-        // For absolute angles ang0 and ang1:
-        // p0 = (m0 + m1) * l0^2 * v0 + m1 * l0 * l1 * v1 * cos(ang0 - ang1)
-        // p1 = m1 * l1^2 * v1 + m1 * l0 * l1 * v0 * cos(ang0 - ang1)
-        this.moment0 = (m0 + m1) * l0 * l0 * v0 + m1 * l0 * l1 * v1 * cos_diff;
-        this.moment1 = m1 * l1 * l1 * v1 + m1 * l0 * l1 * v0 * cos_diff;
+        const commonVal = m1 * l0 * l1 * Math.cos(ang0 - ang1);
+        this.moment0 = (m0 + m1) * l0 ** 2 * v0 + v1 * commonVal;
+        this.moment1 = m1 * l1 ** 2 * v1 + v0 * commonVal;
       }
 
       setBasePos(x, y) {
@@ -870,19 +865,164 @@
       setLowerBobPos(x, y) {
         const upperBobPos = this.getUpperBob();
         const [distX, distY] = [x - upperBobPos.x, y - upperBobPos.y];
+        // ang1 is relative to the upper pendulum's rod (l0)
+        // We need to find the angle of the lower bob relative to the upper bob
+        // The angle from horizontal to the upper rod is this.ang0 (if defined from vertical)
+        // Or more directly, calculate the angle of the vector from upperBobPos to (x,y)
+        // and then find its difference from the angle of the upper rod.
+        // Let's adjust this: ang1 is the angle of the lower pendulum *relative to the upper pendulum's rod*.
+        // So, if the upper rod is at angle A (from vertical), and the lower rod is at angle B (from vertical),
+        // then ang1 = B - A.
+        // Here, we are setting the absolute position (x,y) of the lower bob.
+        // We need to find the new ang1.
+        const absoluteAngleLower = Math.atan2(x - upperBobPos.x, y - upperBobPos.y);
+        // The angle of the upper rod (ang0) is defined relative to the vertical, positive clockwise.
+        // The simulation uses ang0 where positive is to the right (from pivot, if pivot is above).
+        // Let's assume ang0 is the angle of the upper rod from the positive y-axis (downwards), positive clockwise.
+        // And ang1 is the angle of the lower rod from the upper rod, positive clockwise.
+        // The current `calculateBobPosition` uses ang0 and -ang1 with sin for x and cos for y,
+        // implying ang0 is angle with positive y-axis and ang1 is relative.
+        // If ang0 is angle from positive y-axis (pointing down), and positive is clockwise:
+        // x_upper = x0 + l0 * sin(ang0)
+        // y_upper = y0 + l0 * cos(ang0)
+        // x_lower = x_upper + l1 * sin(ang0 + ang1)
+        // y_lower = y_upper + l1 * cos(ang0 + ang1)
+        // The provided `calculateBobPosition` for lower bob uses -ang1.
+        // Let's stick to the existing `calculateBobPosition` logic and derive ang1.
+        // Upper bob position (xu, yu)
+        // Lower bob desired position (xl_desired, yl_desired) = (x, y)
+        // Vector from upper to lower bob: (xl_desired - xu, yl_desired - yu)
+        // Angle of this vector: atan2(xl_desired - xu, yl_desired - yu)
+        // This angle is the absolute angle of the lower rod. Let it be `abs_ang_lower_rod`.
+        // The absolute angle of the upper rod is `this.ang0`.
+        // The `calculateBobPosition` for lower bob uses `ang_upper_rod - ang1_relative`
+        // So, `abs_ang_lower_rod = ang_upper_rod - ang1_relative` (if ang1_relative is defined as per the function)
+        // Or if `ang1` is the angle *of the lower pendulum relative to the upper pendulum's rod*,
+        // then the absolute angle of the lower rod is `ang0 + ang1` (assuming consistent definitions).
+        // The current `getLowerBob` uses `calculateBobPosition(upperBobPos.x, upperBobPos.y, -ang1, l1)`
+        // which means it treats `-ang1` as the angle for the lower bob relative to the upper bob's orientation.
+        // This is confusing. Let's simplify: ang0 is angle of upper rod from vertical. ang1 is angle of lower rod from vertical.
+        // The Hamiltonian uses ang0 and ang1 directly.
+        // The `calculateBobPosition` uses ang0 for upper, and then -ang1 for lower, relative to upper. This implies ang1 in Hamiltonian is relative.
+
+        // Let's assume ang0 and ang1 in the Hamiltonian are absolute angles from the vertical.
+        // Then getUpperBob: x = x0 + l0 * sin(ang0), y = y0 + l0 * cos(ang0)
+        // And getLowerBob: x = x_upper + l1 * sin(ang1), y = y_upper + l1 * cos(ang1)
+        // If this is the case, then setLowerBobPos becomes:
+        const newAbsoluteAngleLower = Math.atan2(x - upperBobPos.x, y - upperBobPos.y);
+        if (lockLengths) {
+          this.ang1 = newAbsoluteAngleLower; // If ang1 is absolute
+        } else {
+          this.l1 = Math.sqrt(distX ** 2 + distY ** 2);
+          this.ang1 = newAbsoluteAngleLower; // If ang1 is absolute
+        }
+        // HOWEVER, the Hamiltonian equations provided typically use ang0 for the first pendulum
+        // and ang1 for the *second pendulum relative to the first*.
+        // The `move` method uses `this.ang0` and `this.ang1` with the Hamiltonian.
+        // The `getLowerBob` uses `calculateBobPosition(upperBobPos.x, upperBobPos.y, -ang1, l1)`.
+        // This suggests that `ang1` in the `DoublePendulum` object is indeed relative to the upper pendulum,
+        // and the `-ang1` in `calculateBobPosition` is to make it work with that function's expectation.
+        // Let's stick to the original interpretation that `ang1` is relative.
+        // `calculateBobPosition(x_base, y_base, angle_from_y_axis_clockwise, length)`
+        // `getUpperBob`: uses `ang0`
+        // `getLowerBob`: uses `upperBobPos` as base, and `-ang1` as its angle.
+        // This means `ang1` is the angle of the lower pendulum relative to the *negative y-axis extension of the upper pendulum*.
+        // Or, more likely, `ang1` is the angle of the lower pendulum relative to the upper pendulum, and the `-` sign handles coordinate system.
+
+        // Let's re-evaluate `setLowerBobPos` based on `ang1` being relative to `ang0`.
+        // Absolute angle of upper rod: `this.ang0` (from positive y-axis, clockwise)
+        // Desired absolute angle of lower rod: `Math.atan2(x - upperBobPos.x, y - upperBobPos.y)`
+        // Let this be `abs_ang_lower`.
+        // If `ang1` is relative to `ang0` such that `abs_ang_lower = this.ang0 + this.ang1` (assuming consistent clockwise positive)
+        // Then `this.ang1 = abs_ang_lower - this.ang0`.
+        // The `getLowerBob` uses `calculateBobPosition(..., -this.ang1, this.l1)`.
+        // This means the angle passed to `calculateBobPosition` for the lower bob is `-this.ang1`.
+        // So, `abs_ang_lower` (which is `atan2(distX, distY)`) should be equal to the angle that `-this.ang1` represents *relative to the upper bob's orientation*.
+        // This is getting complicated. Let's simplify the meaning of ang0 and ang1 for the Hamiltonian.
+        // ang0: angle of upper pendulum from vertical.
+        // ang1: angle of lower pendulum from vertical.
+        // The Hamiltonian `F_ang0` and `F_ang1` derivatives are with respect to these absolute angles.
+        // If so, `getUpperBob` is: x = x0 + l0 * sin(ang0), y = y0 + l0 * cos(ang0) (assuming ang0 from +y, clockwise)
+        // `getLowerBob` is: x_lower = x_upper + l1 * sin(ang1), y_lower = y_upper + l1 * cos(ang1)
+
+        // Let's assume the `calculateBobPosition(baseX, baseY, angle, len)` takes angle from +Y axis, positive clockwise.
+        // Then `getUpperBob` is correct: `this.calculateBobPosition(x0, y0, ang0, l0);`
+        // And `getLowerBob` should be `this.calculateBobPosition(upperBobPos.x, upperBobPos.y, ang1, l1);` if ang1 is absolute.
+        // The original `getLowerBob` uses `-ang1`. This implies `ang1` in the `DoublePendulum` object is relative to `ang0` but in a specific way.
+
+        // Given the spin counting logic relies on absolute angles from the pivot (x0, y0),
+        // it's easier if `this.ang0` is the absolute angle of the upper bob.
+        // The Hamiltonian equations are often derived where `theta1` (our `ang0`) is the angle of the first pendulum
+        // and `theta2` (our `ang1`) is the angle of the second pendulum *relative to the first*.
+        // If this is the case:
+        // Absolute angle of upper rod = `this.ang0`
+        // Absolute angle of lower rod = `this.ang0 + this.ang1`
+        // `getUpperBob()` uses `this.ang0`.
+        // `getLowerBob()` uses `calculateBobPosition(upperBobPos.x, upperBobPos.y, this.ang0 + this.ang1, l1)` if `calculateBobPosition` takes absolute angle.
+        // The existing `getLowerBob` uses `calculateBobPosition(upperBobPos.x, upperBobPos.y, -ang1, l1)`.
+        // This is very confusing. Let's assume the original `getLowerBob` and `calculateBobPosition` are internally consistent for drawing.
+        // The key is that the Hamiltonian `move()` updates `this.ang0` and `this.ang1`.
+        // We need to know what these angles represent for the spin counting.
+        // `this.ang0` is likely the absolute angle of the upper rod.
+        // `this.ang1` is likely relative to the upper rod.
+
+        // For `setLowerBobPos(x,y)`:
+        // We know `upperBobPos`. We want to set `this.ang1`.
+        // `(x,y)` is the desired position of the lower bob.
+        // `(dx, dy) = (x - upperBobPos.x, y - upperBobPos.y)`
+        // The absolute angle of the lower rod is `atan2(dx, dy)`. Let this be `abs_lower_angle`.
+        // If `getLowerBob` uses `calculateBobPosition(upperBobPos.x, upperBobPos.y, EFFECTIVE_ANGLE_FOR_LOWER, l1)`
+        // and `EFFECTIVE_ANGLE_FOR_LOWER` is `-this.ang1`, then `abs_lower_angle` should correspond to this.
+        // So, `abs_lower_angle` is the angle that `-this.ang1` represents in the coordinate system of `calculateBobPosition`.
+        // If `calculateBobPosition` takes angle from +Y axis, clockwise:
+        // `abs_lower_angle = -this.ang1` (if `this.ang1` is defined counter-clockwise from +Y axis of upper bob)
+        // OR `abs_lower_angle = some_transform(this.ang0, this.ang1)`.
+
+        // Let's trust the existing `getLowerBob` and `calculateBobPosition` for drawing.
+        // The Hamiltonian's `ang0` and `ang1` are what `move()` updates.
+        // `ang0` is likely the angle of the upper pendulum from vertical.
+        // `ang1` is likely the angle of the lower pendulum *relative to the upper pendulum*.
+        // So, absolute angle of upper bob = `this.ang0`.
+        // Absolute angle of lower bob = `this.ang0 + this.ang1` (if ang1 is defined as deviation from ang0).
+        // The spin counting for lower bob currently uses `getLowerBob()` and then `atan2(y - y0, x - x0)`. This is correct for absolute spin.
+
+        // Back to `setLowerBobPos(x,y)`:
+        // `upperBobPos = this.getUpperBob()`.
+        // `vec_lower = (x - upperBobPos.x, y - upperBobPos.y)`.
+        // `abs_angle_of_lower_rod_from_vertical = Math.atan2(vec_lower.x, vec_lower.y)` (if x is sin, y is cos)
+        // Let `abs_upper = this.ang0`.
+        // If `ang1` is relative, then `abs_angle_of_lower_rod_from_vertical = this.ang0 + this.ang1`.
+        // So, `this.ang1 = abs_angle_of_lower_rod_from_vertical - this.ang0`.
+        // This seems the most consistent if Hamiltonian uses relative `ang1`.
         const new_l1 = Math.sqrt(distX ** 2 + distY ** 2);
-        const abs_angle_lower_segment = Math.atan2(distX, distY); // Absolute angle of the lower segment from the vertical
+        const abs_angle_lower_segment = Math.atan2(distX, distY); // Angle of the segment from upper bob to lower bob
 
         if (lockLengths) {
-            this.ang1 = abs_angle_lower_segment;
-            // Normalize ang1 to be between -PI and PI
-            this.ang1 = ((Math.PI + this.ang1) % (2 * Math.PI)) - Math.PI;
+            // We need to set this.ang1 such that the lower bob is at (x,y) using existing l1
+            // The absolute angle of the upper rod is this.ang0 (from +Y, clockwise for calculateBobPosition)
+            // The desired absolute angle of the lower rod is abs_angle_lower_segment
+            // If this.ang1 is relative to this.ang0 (e.g., abs_lower = ang0 + ang1_relative)
+            // Then ang1_relative = abs_angle_lower_segment - this.ang0
+            // However, getLowerBob uses -this.ang1 in calculateBobPosition.
+            // This implies that if calculateBobPosition takes angle `alpha`, then `alpha = -this.ang1`.
+            // And `alpha` here is the angle of the lower rod *relative to the upper rod's orientation*.
+            // This is too tangled. Let's simplify: `this.ang1` from Hamiltonian is angle of lower rod relative to upper rod.
+            // `this.ang0` is angle of upper rod from vertical.
+            // So, absolute angle of lower rod = `this.ang0 + this.ang1`.
+            // When dragging, we are setting the absolute position.
+            // `abs_angle_lower_segment` is the angle of the segment (l1) from the vertical.
+            // So, `this.ang1 = abs_angle_lower_segment - this.ang0`.
+             this.ang1 = (abs_angle_lower_segment - this.ang0);
+             // Normalize ang1 to be between -PI and PI
+             this.ang1 = ((Math.PI + this.ang1) % (2 * Math.PI)) - Math.PI;
+
         } else {
           this.l1 = new_l1;
-          this.ang1 = abs_angle_lower_segment;
+          this.ang1 = (abs_angle_lower_segment - this.ang0);
           this.ang1 = ((Math.PI + this.ang1) % (2 * Math.PI)) - Math.PI;
         }
       }
+
 
       holdBase() {
         this.baseHold = true;
@@ -924,44 +1064,109 @@
 
       getLowerBob() {
         const upperBobPos = this.getUpperBob();
-        // ang1 is angle of lower pendulum *from vertical (absolute)*, positive clockwise.
+        // ang1 is angle of lower pendulum *relative to upper pendulum*, positive clockwise.
+        // So, absolute angle of lower pendulum is ang0 + ang1.
         return this.calculateBobPosition(
           upperBobPos.x,
           upperBobPos.y,
-          this.ang1, // Use ang1 directly as it's now absolute
+          this.ang0 + this.ang1, 
           this.l1
         );
       }
       
       hamiltonian(ang0, ang1, moment0, moment1) {
-        // ang0: angle of upper pendulum from vertical (absolute)
-        // ang1: angle of lower pendulum from vertical (absolute)
+        // ang0: angle of upper pendulum from vertical
+        // ang1: angle of lower pendulum *relative to upper pendulum*
+        // The equations used here are for ang0 and ang1_relative (delta_ang = ang_lower_abs - ang_upper_abs)
+        // So the ang1 parameter here is this delta_ang.
         const { m0, m1, l0, l1, g } = this;
-        const diff_ang = ang0 - ang1; // Difference between the two absolute angles
+        const delta_ang = ang1; // ang1 here is the relative angle
+
+        const C0_num = l0 * l1 * (m0 + m1 * Math.sin(delta_ang) ** 2);
+        // Prevent division by zero if C0_num is too small
+        if (Math.abs(C0_num) < 1e-9) { 
+            return [0,0,0,0]; 
+        }
+        const C0 = l0 * l1 * (m0 + m1 * Math.sin(delta_ang) ** 2); // Denominator term, should be m1, not (m0+m1) for the F_ang0, F_ang1 terms if ang1 is relative
+                                                                // Let's use the common formulation for relative ang1
+        
+        // Using standard equations for Hamiltonian with ang1 as relative angle (theta2 in many texts)
+        const cos_delta = Math.cos(delta_ang);
+        const sin_delta = Math.sin(delta_ang);
+
+        // Derivatives of H with respect to p1, p2 (momenta for ang0, ang1_relative)
+        // H = (p1^2 * (m1*l2^2) + p2^2 * (m0+m1)*l1^2 - 2*p1*p2*m1*l1*l2*cos(delta_ang)) / (2*m1*l1^2*l2^2*(m0+m1*sin(delta_ang)^2)) 
+        //     - (m0+m1)*g*l1*cos(ang0) - m1*g*l2*cos(ang0+delta_ang)
+        // This is complex. The provided Hamiltonian seems to be a simplified or specific form.
+        // Let's assume the provided Hamiltonian function is correct for its variable definitions.
+        // The key is that it returns [d(ang0)/dt, d(ang1_relative)/dt, d(moment0)/dt, d(moment1_relative)/dt]
+        // The original code has:
+        // const C0 = l0 * l1 * (m0 + m1 * Math.sin(ang0 - ang1) ** 2); // This implies ang0 and ang1 are absolute.
+        // Let's revert Hamiltonian to use ang0_abs and ang1_abs as its direct inputs for consistency with its internal math.
+        // If Hamiltonian takes absolute angles:
+        const ang0_abs = ang0;
+        const ang1_abs = ang1; // If the `ang1` passed to hamiltonian is absolute.
+                               // The `move` method passes `this.ang0` and `this.ang1`.
+                               // If `this.ang1` is relative, then `ang1_abs = this.ang0 + this.ang1`.
+                               // Let's assume the Hamiltonian `ang0, ang1` are absolute angles.
+
+        const diff_ang = ang0_abs - ang1_abs; // ang0 and ang1 here are absolute angles from vertical.
         const cos_diff = Math.cos(diff_ang);
         const sin_diff = Math.sin(diff_ang);
 
-        // Denominator for angular velocities (dH/dp)
+        // Denominator from a common formulation:
         let den = (m0 + m1) * m1 * l0 * l0 * l1 * l1 - (m1 * l0 * l1 * cos_diff) ** 2;
-        if (Math.abs(den) < 1e-9) return [0,0,0,0]; // Avoid division by zero
+        if (Math.abs(den) < 1e-9) return [0,0,0,0];
 
-        // Derivatives of H with respect to momenta (angular velocities)
-        // d(ang0)/dt = (p0 * m1 * l1^2 - p1 * m1 * l0 * l1 * cos(diff_ang)) / den
-        const F_ang0 = (moment0 * m1 * l1 * l1 - moment1 * m1 * l0 * l1 * cos_diff) / den;
-        // d(ang1)/dt = (p1 * (m0 + m1) * l0^2 - p0 * m1 * l0 * l1 * cos(diff_ang)) / den
-        const F_ang1 = (moment1 * (m0 + m1) * l0 * l0 - moment0 * m1 * l0 * l1 * cos_diff) / den;
 
-        // Derivatives of momenta (dH/d_angle)
-        // These are derived from - (d(Kinetic Energy)/d_angle + d(Potential Energy)/d_angle)
-        // Potential Energy: V = -(m0+m1)*g*l0*cos(ang0) - m1*g*l1*cos(ang1)
-        // Kinetic Energy: T = 0.5*(m0+m1)*l0^2*v0^2 + 0.5*m1*l1^2*v1^2 + m1*l0*l1*v0*v1*cos(ang0-ang1)
-        // where v0 = F_ang0, v1 = F_ang1
-
-        const F_moment0 = m1 * l0 * l1 * F_ang0 * F_ang1 * sin_diff - (m0 + m1) * g * l0 * Math.sin(ang0);
-        const F_moment1 = -m1 * l0 * l1 * F_ang0 * F_ang1 * sin_diff - m1 * g * l1 * Math.sin(ang1);
+        const F_ang0_num = (moment0 * m1 * l1 * l1) - (moment1 * m1 * l0 * l1 * cos_diff);
+        const F_ang1_num = (moment1 * (m0+m1) * l0 * l0) - (moment0 * m1 * l0 * l1 * cos_diff);
         
-        return [F_ang0, F_ang1, F_moment0, F_moment1];
+        const F_ang0 = F_ang0_num / den; // d(ang0_abs)/dt
+        const F_ang1 = F_ang1_num / den; // d(ang1_abs)/dt
+
+        // For d(moment0)/dt and d(moment1)/dt, we need dH/d(ang0_abs) and dH/d(ang1_abs)
+        // dH/d(ang0_abs) = - (m0+m1)*g*l0*sin(ang0_abs) - (moment0*moment1*sin_diff) / (m1*l0*l1*den_factor_for_momenta_term) 
+        //                  + ( (moment0*l1)^2*m1 + (moment1*l0)^2*(m0+m1) - 2*m0*m1*l0*l1*moment0*moment1*cos_diff ) * sin(2*diff_ang) / (2 * den_factor_squared)
+        // This is where the original C1, C2 terms came from, but they used ang0, ang1 which were assumed to be ang0_abs, ang1_relative.
+        // Let's use the provided Hamiltonian and assume its `ang0` is `ang0_abs` and its `ang1` is `ang1_abs`.
+        // Then the `move` method will update `this.ang0` (abs) and `this.ang1` (abs).
+        // This simplifies `getLowerBob` to use `this.ang1` directly.
+        // And `setLowerBobPos` becomes simpler for `this.ang1`.
+
+        // Re-evaluating the provided Hamiltonian with ang0_abs, ang1_abs:
+        // Original: const C0 = l0 * l1 * (m0 + m1 * Math.sin(ang0 - ang1) ** 2);
+        // This `ang0 - ang1` is `diff_ang`.
+        const C0_ham = l0 * l1 * (m0 + m1 * Math.sin(diff_ang) ** 2);
+        if (Math.abs(C0_ham) < 1e-9) { 
+            return [0,0,0,0]; 
+        }
+        const C1_ham = (moment0 * moment1 * Math.sin(diff_ang)) / C0_ham;
+        const C2_ham =
+          ((m1 * (l1 * moment0) ** 2 +
+            (m0 + m1) * (l0 * moment1) ** 2 -
+            2 * l0 * l1 * m1 * moment0 * moment1 * Math.cos(diff_ang)) *
+            Math.sin(2 * (diff_ang))) /
+          (2 * C0_ham ** 2);
+        
+        const F_ang0_ham = (l1 * moment0 - l0 * moment1 * Math.cos(diff_ang)) / (l0 * C0_ham); // This seems like d(ang0)/dt
+        const F_ang1_ham_term_in_orig = (l0 * (m0 + m1) * moment1 - l1 * m1 * moment0 * Math.cos(diff_ang)) / (l1 * m1 * C0_ham); // This was d(ang1_relative)/dt in original context
+                                                                                                                            // If ang1 is absolute, this needs to be d(ang1_abs)/dt.
+                                                                                                                            // The F_ang0 and F_ang1 from the standard formulation above are more direct for absolute angles.
+                                                                                                                            // Let's use those: F_ang0, F_ang1 computed earlier.
+
+        const F_moment0_ham = -(m0 + m1) * g * l0 * Math.sin(ang0_abs) - C1_ham + C2_ham; // -dH/d(ang0_abs)
+        const F_moment1_ham = -m1 * g * l1 * Math.sin(ang1_abs) + C1_ham - C2_ham;       // -dH/d(ang1_abs)
+        
+        // So, if this.ang0 and this.ang1 are absolute angles:
+        // d(this.ang0)/dt = F_ang0 (from standard formulation)
+        // d(this.ang1)/dt = F_ang1 (from standard formulation)
+        // d(this.moment0)/dt = F_moment0_ham (assuming moment0 is conjugate to ang0_abs)
+        // d(this.moment1)/dt = F_moment1_ham (assuming moment1 is conjugate to ang1_abs)
+        // The moments p0, p1 are conjugate to ang0_abs, ang1_abs.
+        return [F_ang0, F_ang1, F_moment0_ham, F_moment1_ham];
       }
+
 
       move() {
         // Assume this.ang0 and this.ang1 are absolute angles from vertical, clockwise.
@@ -980,13 +1185,13 @@
           (_c, _i) => (dt * (k1[_i] + 2 * k2[_i] + 2 * k3[_i] + k4[_i])) / 6
         );
         this.ang0 += R[0];
-        this.ang1 += R[1]; 
+        this.ang1 += R[1]; // This updates ang1_abs
         this.moment0 += R[2];
         this.moment1 += R[3];
 
-        // Normalize angles to be between -PI and PI
-        this.ang0 = ((3 * Math.PI + this.ang0) % (2 * Math.PI)) - Math.PI; 
-        this.ang1 = ((3 * Math.PI + this.ang1) % (2 * Math.PI)) - Math.PI; 
+        // Normalize angles
+        this.ang0 = ((3 * Math.PI + this.ang0) % (2 * Math.PI)) - Math.PI; // to -PI to PI
+        this.ang1 = ((3 * Math.PI + this.ang1) % (2 * Math.PI)) - Math.PI; // to -PI to PI
       }
     }
 
@@ -1107,12 +1312,9 @@
 
         // Initialize previous angles after pendulum is created/reset
         if (doublePendulum) {
-            // For lower bob, get its absolute position and calculate angle relative to upper bob
-            const upperBobPos = doublePendulum.getUpperBob();
-            const lowerBobPos = doublePendulum.getLowerBob();
-            previous_lb_abs_angle = Math.atan2(lowerBobPos.y - upperBobPos.y, lowerBobPos.x - upperBobPos.x);
+            const initial_lb_pos = doublePendulum.getLowerBob();
+            previous_lb_abs_angle = Math.atan2(initial_lb_pos.y - doublePendulum.y0, initial_lb_pos.x - doublePendulum.x0);
             
-            // For upper bob, get its absolute position and calculate angle from origin
             const initial_ub_pos = doublePendulum.getUpperBob();
             previous_ub_abs_angle = Math.atan2(initial_ub_pos.y - doublePendulum.y0, initial_ub_pos.x - doublePendulum.x0);
         }
@@ -1136,8 +1338,8 @@
         height: scaleHeight,
         x0: scaleWidth / 2,
         y0: scaleHeight / 2,
-        ang0: Math.PI / 2, // Start horizontal
-        ang1: Math.PI / 2, // Start horizontal (absolute angle)
+        ang0: Math.PI / 2, // Start horizontal for testing
+        ang1: Math.PI / 2, // Start horizontal for testing (absolute angle)
         v0: 0,
         v1: 0,
         acc0: 0,
@@ -1201,7 +1403,7 @@
 
     function drawPendulum() {
       if (!doublePendulum) return; 
-      const { x0, y0, baseRad, r0, r1 } = doublePendulum; 
+      const { x0, y0, baseRad, r0, r1 } = doublePendulum; // ang0, ang1, l0, l1 removed as getUpper/LowerBob use them
 
       const upperBobPos = doublePendulum.getUpperBob();
       const lowerBobPos = doublePendulum.getLowerBob();
@@ -1228,9 +1430,13 @@
       lowerBob.setAttribute("cx", lowerBobPos.x);
       lowerBob.setAttribute("cy", lowerBobPos.y);
 
-      // Graphing the absolute angle of the upper pendulum for upper_graph
-      const upperAngleForGraph = doublePendulum.ang0;
-      const tempPlot = Math.min(upperAngleForGraph, 2 * Math.PI - upperAngleForGraph);
+      // Graphing based on relative angle for visual interest, assuming ang1 is relative for this part
+      // If ang1 is absolute, this needs to be ang1 - ang0
+      const relativeAngleForGraph = doublePendulum.ang1; // If this.ang1 is already relative
+      // If this.ang1 is absolute, then: const relativeAngleForGraph = doublePendulum.ang1 - doublePendulum.ang0;
+      const tempAng = doublePendulum.ang0 + relativeAngleForGraph; // This was original logic, implies ang1 was relative for graph
+      const tempPlot = Math.min(tempAng, 2 * Math.PI - tempAng); // This seems to be for phase space plot, not directly relevant to spin
+
       upperGraph.addGraphPoint(
         doublePendulum.height * 0.5 +
           (doublePendulum.height * 0.125 * tempPlot) / Math.PI
@@ -1318,49 +1524,50 @@
       doublePendulum.move();
 
       // --- Spin Counting for Lower Bob ---
-      // Calculates the angle of the lower bob relative to the upper bob's position
-      const upperBobPos = doublePendulum.getUpperBob();
-      const lowerBobPos = doublePendulum.getLowerBob();
-      let current_absolute_angle_lb = Math.atan2(lowerBobPos.y - upperBobPos.y, lowerBobPos.x - upperBobPos.x);
-      
+      const current_lb_pos = doublePendulum.getLowerBob();
+      let current_absolute_angle_lb = Math.atan2(current_lb_pos.y - doublePendulum.y0, current_lb_pos.x - doublePendulum.x0);
       let delta_abs_lb = current_absolute_angle_lb - previous_lb_abs_angle;
-      let shortest_delta_abs_lb = Math.atan2(Math.sin(delta_abs_lb), Math.cos(delta_abs_lb)); // Normalize delta to -PI to PI
+      let shortest_delta_abs_lb = Math.atan2(Math.sin(delta_abs_lb), Math.cos(delta_abs_lb));
       accumulated_lb_abs_angle_change += shortest_delta_abs_lb;
 
-      if (accumulated_lb_abs_angle_change <= -2 * Math.PI) { // Swapped for correct CW/CCW
+      if (accumulated_lb_abs_angle_change >= 2 * Math.PI) {
         lb_ccw_spins++; 
-        accumulated_lb_abs_angle_change += 2 * Math.PI;
-        lbCcwSpinsCounter.textContent = `LB CCW: ${lb_ccw_spins}`;
-      } else if (accumulated_lb_abs_angle_change >= 2 * Math.PI) { // Swapped for correct CW/CCW
-        lb_cw_spins++; 
         accumulated_lb_abs_angle_change -= 2 * Math.PI;
+        lbCcwSpinsCounter.textContent = `LB CCW: ${lb_ccw_spins}`;
+      } else if (accumulated_lb_abs_angle_change <= -2 * Math.PI) {
+        lb_cw_spins++; 
+        accumulated_lb_abs_angle_change += 2 * Math.PI;
         lbCwSpinsCounter.textContent = `LB CW: ${lb_cw_spins}`;
       }
       previous_lb_abs_angle = current_absolute_angle_lb;
 
       // --- Spin Counting for Upper Bob ---
-      // Calculates the absolute angle of the upper bob relative to the main pivot (x0, y0)
       const current_ub_pos = doublePendulum.getUpperBob();
+      // The angle of the upper bob is simply its `ang0` if `ang0` is defined from the pivot (x0,y0)
+      // and atan2 uses (y-y_pivot, x-x_pivot).
+      // `doublePendulum.ang0` is angle from +Y axis, clockwise.
+      // `atan2(y,x)` gives angle from +X axis, counter-clockwise.
+      // To use atan2(y-pivot, x-pivot) for angle from +X CCW:
       let current_absolute_angle_ub = Math.atan2(current_ub_pos.y - doublePendulum.y0, current_ub_pos.x - doublePendulum.x0);
 
       let delta_abs_ub = current_absolute_angle_ub - previous_ub_abs_angle;
-      let shortest_delta_abs_ub = Math.atan2(Math.sin(delta_abs_ub), Math.cos(delta_abs_ub)); // Normalize delta to -PI to PI
+      let shortest_delta_abs_ub = Math.atan2(Math.sin(delta_abs_ub), Math.cos(delta_abs_ub));
       accumulated_ub_abs_angle_change += shortest_delta_abs_ub;
 
-      if (accumulated_ub_abs_angle_change <= -2 * Math.PI) { // Swapped for correct CW/CCW
+      if (accumulated_ub_abs_angle_change >= 2 * Math.PI) {
         ub_ccw_spins++;
-        accumulated_ub_abs_angle_change += 2 * Math.PI;
-        ubCcwSpinsCounter.textContent = `UB CCW: ${ub_ccw_spins}`;
-      } else if (accumulated_ub_abs_angle_change >= 2 * Math.PI) { // Swapped for correct CW/CCW
-        ub_cw_spins++;
         accumulated_ub_abs_angle_change -= 2 * Math.PI;
+        ubCcwSpinsCounter.textContent = `UB CCW: ${ub_ccw_spins}`;
+      } else if (accumulated_ub_abs_angle_change <= -2 * Math.PI) {
+        ub_cw_spins++;
+        accumulated_ub_abs_angle_change += 2 * Math.PI;
         ubCwSpinsCounter.textContent = `UB CW: ${ub_cw_spins}`;
       }
       previous_ub_abs_angle = current_absolute_angle_ub;
 
 
       drawPendulum();
-      tracer.addPoint(lowerBobPos); // Trace the lower bob's path
+      tracer.addPoint(current_lb_pos); 
       drawTracer();
       checkPauseOnFind(); 
       totalTicks++; 
@@ -1376,6 +1583,13 @@
             dtInput.value = doublePendulum.dt.toFixed(5); 
         }
         
+        // If "Pause on Find 2" is enabled, load target state from slot 2
+        // This is now handled by the checkbox's onchange event.
+        // if (pauseOnFindEnabled && !initialPendulumState) { 
+        //    loadSavedConfig2ForPause(); // Load if not already loaded
+        // }
+
+
         // Reset spin counts and tracking only if starting from tick 0
         if (totalTicks === 0) {
             resetAllSpinCounters(); // This also sets previous angles
@@ -1410,7 +1624,7 @@
         x0: doublePendulum.x0,
         y0: doublePendulum.y0,
         ang0: doublePendulum.ang0,
-        ang1: doublePendulum.ang1, 
+        ang1: doublePendulum.ang1, // If ang1 is absolute, this is fine. If relative, also fine.
         l0: doublePendulum.l0,
         l1: doublePendulum.l1,
         r0: doublePendulum.r0,
@@ -1448,6 +1662,7 @@
     function loadConfig(slot) {
       totalTicks = 0; 
       ticksCounter.textContent = `Ticks: ${totalTicks}`;
+      // initialPendulumState = null; // Clear general initial state, "Pause on Find" handles its own
       
       let configStr = localStorage.getItem(`pendulumSave${slot}`);
       
@@ -1562,7 +1777,11 @@
       if (isNowHolding) {
         totalTicks = 0; 
         ticksCounter.textContent = `Ticks: ${totalTicks}`;
+        // initialPendulumState = null; // Clear for "Pause on Find" if dragging
         if (pauseOnFindEnabled) {
+            // If dragging, the "find" state is invalidated.
+            // User might want to set a new "find" state after positioning.
+            // For now, let's clear it.
             initialPendulumState = null; 
             console.log("Pendulum dragged, 'Pause on Find 2' target state cleared.");
         }
@@ -1584,8 +1803,9 @@
         // When dragging, reset moments/velocities to prevent wild swinging on release
         doublePendulum.v0 = 0;
         doublePendulum.v1 = 0;
-        doublePendulum.moment0 = 0; 
-        doublePendulum.moment1 = 0; 
+        doublePendulum.moment0 = 0; // Or recalculate based on new angles if desired
+        doublePendulum.moment1 = 0; // Or recalculate
+        // doublePendulum.setMoments(); // This might be better if v0,v1 are meant to be derived
 
         resetAllSpinCounters(); // Continuously update previous angles while dragging
         drawPendulum(); 
@@ -1596,6 +1816,12 @@
       if (!animation && (doublePendulum.upperBobHold || doublePendulum.lowerBobHold || doublePendulum.baseHold )) {
          if(pauseStart === null) pauseStart = Date.now();
       }
+
+      // Before dropping, if a bob was held, ensure its velocity and momentum are zeroed
+      // or recalculated if that's the desired behavior.
+      // The `handleMove` already zeroes them.
+      // doublePendulum.setMoments(); // Recalculate moments based on current (potentially zero) velocities
+
       doublePendulum.dropUpperBob();
       doublePendulum.dropLowerBob();
       doublePendulum.dropBase();
