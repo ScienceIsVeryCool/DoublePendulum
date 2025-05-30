@@ -654,6 +654,35 @@
       document.getElementById('errorPercentageInput').value = value.toFixed(3);
     }
     
+    // Define default configuration values as constants
+    const DEFAULT_CONFIG = {
+      ang0: Math.PI / 2, // Angle of upper pendulum relative to vertical (absolute)
+      ang1: Math.PI / 2, // Angle of lower pendulum relative to vertical (absolute)
+      v0: 0,
+      v1: 0,
+      acc0: 0,
+      acc1: 0,
+      l0: 0, // Will be calculated based on scale
+      l1: 0, // Will be calculated based on scale
+      r0: 0, // Will be calculated based on scale
+      r1: 0, // Will be calculated based on scale
+      m0: 100,
+      m1: 100,
+      g: 0.1,
+      massScaleFactor: 1.2,
+      speedScaleFactor: 1.2,
+      dt: 0.5, 
+      fps: 100,
+      acceptableErrorPercentage: 0.1,
+      lockLengths: true,
+      showPendulum: true,
+      showTrace: true,
+      showGraph: true,
+      persistTrace: false,
+      smoothenTrace: false,
+      pauseOnFind: false,
+    };
+
     // Constants
     const PLAY_SYMBOL = "▶";
     const PAUSE_SYMBOL = "| |";
@@ -662,7 +691,9 @@
     const GRAPH_SMOOTH_FACTOR = 0.2;
     const TRACE_DEFAULT_MAX = 500;
     const TRACE_PERSIST_MAX = 10000;
-    
+    const LOG_TICK_FREQUENCY = 25;
+    const END_SIM_TICK = 1000; // DID YOU FORGET TO TURN THIS OFF? TODO better way of doing this
+
     // Cached DOM elements
     const shareButton = document.querySelector("#share");
     const gravityButton = document.querySelector("#gravitybox");
@@ -687,6 +718,14 @@
     // New input element references
     const dtInput = document.getElementById("dtInput");
     const errorPercentageInput = document.getElementById("errorPercentageInput");
+    const showPendulumBox = document.getElementById('showPendulumBox');
+    const resetbox = document.getElementById('resetbox');
+    const graphbox = document.getElementById('graphbox');
+    const persistbox = document.getElementById('persistbox');
+    const smoothenbox = document.getElementById('smoothenbox');
+    const pauseOnFindBox = document.getElementById('pauseOnFindBox');
+    const lockLengthBox = document.getElementById('lockLengthBox');
+
 
     // Lower Bob spin tracking variables
     let lb_cw_spins = 0; 
@@ -702,14 +741,15 @@
 
     let totalTicks = 0; 
     let animation;
-    let lockLengths = true;
-    let pauseOnFindEnabled = false; // For "Pause on Find Origin" checkbox
+    let lockLengths = DEFAULT_CONFIG.lockLengths; // Initialize from default config
+    let pauseOnFindEnabled = DEFAULT_CONFIG.pauseOnFind; // Initialize from default config
     let initialPendulumState = null; // Stores the state at tick 0 or last reset for "Pause on Find Origin"
-    let acceptableErrorPercentage = 0.1;
+    let acceptableErrorPercentage = DEFAULT_CONFIG.acceptableErrorPercentage; // Initialize from default config
     let startTime = Date.now();
     let pausedTime = 0;
     let pauseStart = Date.now();
     let timerInterval = null; 
+    let logList = [];
 
     class DoublePendulum {
       constructor({
@@ -1127,36 +1167,47 @@
       const scaleHeight = (100 * innerHeight) / innerWidth;
       const scale = Math.min(scaleWidth, scaleHeight);
       
-      let initialDt = parseFloat(dtInput.value);
-      if (isNaN(initialDt) || initialDt <= 0) {
-        initialDt = 0.5; // Default dt
-      }
-
+      // Use values from DEFAULT_CONFIG
       doublePendulum = new DoublePendulum({
         width: scaleWidth,
         height: scaleHeight,
         x0: scaleWidth / 2,
         y0: scaleHeight / 2,
-        ang0: Math.PI / 2, // Start horizontal
-        ang1: Math.PI / 2, // Start horizontal (absolute angle)
-        v0: 0,
-        v1: 0,
-        acc0: 0,
-        acc1: 0,
+        ang0: DEFAULT_CONFIG.ang0, 
+        ang1: DEFAULT_CONFIG.ang1, 
+        v0: DEFAULT_CONFIG.v0,
+        v1: DEFAULT_CONFIG.v1,
+        acc0: DEFAULT_CONFIG.acc0,
+        acc1: DEFAULT_CONFIG.acc1,
         baseRad: scale / 70,
         l0: scale / 4.5,
         l1: scale / 4.5,
         r0: scale / 30,
         r1: scale / 30,
-        m0: 100,
-        m1: 100,
-        g: 0.1,
-        massScaleFactor: 1.2,
-        speedScaleFactor: 1.2,
-        dt: initialDt, 
-        fps: 100,
+        m0: DEFAULT_CONFIG.m0,
+        m1: DEFAULT_CONFIG.m1,
+        g: DEFAULT_CONFIG.g,
+        massScaleFactor: DEFAULT_CONFIG.massScaleFactor,
+        speedScaleFactor: DEFAULT_CONFIG.speedScaleFactor,
+        dt: DEFAULT_CONFIG.dt, 
+        fps: DEFAULT_CONFIG.fps,
       });
 
+      // Set other variables from DEFAULT_CONFIG
+      acceptableErrorPercentage = DEFAULT_CONFIG.acceptableErrorPercentage;
+      lockLengths = DEFAULT_CONFIG.lockLengths;
+      pauseOnFindEnabled = DEFAULT_CONFIG.pauseOnFind;
+
+      // Update UI elements based on default config
+      showPendulumBox.checked = DEFAULT_CONFIG.showPendulum;
+      resetbox.checked = DEFAULT_CONFIG.showTrace;
+      graphbox.checked = DEFAULT_CONFIG.showGraph;
+      persistbox.checked = DEFAULT_CONFIG.persistTrace;
+      smoothenbox.checked = DEFAULT_CONFIG.smoothenTrace;
+      pauseOnFindBox.checked = DEFAULT_CONFIG.pauseOnFind;
+      lockLengthBox.checked = DEFAULT_CONFIG.lockLengths;
+      
+      // Handle URL hash for loading configurations
       if (window.location.hash.length > 0) {
         const query = window.location.hash.substring(1);
         try {
@@ -1361,6 +1412,21 @@
       if (totalTicks > 200) // Give it some ticks to move away from origin before checking
         checkPauseOnFind(); 
       totalTicks++; 
+
+      // New Logging 
+      if (totalTicks % LOG_TICK_FREQUENCY == 0)
+      {
+        // Log current state of pendulum
+        logCurrentState();
+
+      }
+      // Save to file
+      if (END_SIM_TICK > 0 && totalTicks == END_SIM_TICK)
+      {
+        animationToggle();
+        saveLogToFile();
+      }
+
       ticksCounter.textContent = `Ticks: ${totalTicks}`; 
     }
     
@@ -1432,10 +1498,47 @@
     function saveConfig(slot) {
       const fullConfig = {
         pendulumState: { ...doublePendulum }, 
-        errorPercentage: acceptableErrorPercentage 
+        errorPercentage: acceptableErrorPercentage,
+        lockLengths: lockLengths, // Save lockLengths
+        showPendulum: showPendulumBox.checked, // Save display settings
+        showTrace: resetbox.checked,
+        showGraph: graphbox.checked,
+        persistTrace: persistbox.checked,
+        smoothenTrace: smoothenbox.checked,
+        pauseOnFind: pauseOnFindBox.checked,
       };
       const config = JSON.stringify(fullConfig);
       localStorage.setItem(`pendulumSave${slot}`, config);
+    }
+
+    function logCurrentState() {
+      const fullConfig = {
+        pendulumState: { ...doublePendulum }, 
+        errorPercentage: acceptableErrorPercentage,
+        tick: totalTicks,
+
+      };
+
+      logList.push(fullConfig);
+    }
+
+    function saveLogToFile() {
+
+      const allDaLogs = JSON.stringify(logList);
+      const blob = new Blob([allDaLogs], {type: 'application/json' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      // If You wanna do cutesy video stuff, make the name be in relation to the pixel x,y value!
+      a.download = `${DEFAULT_CONFIG.ang0}_${DEFAULT_CONFIG.ang1}.json`;
+
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+      URL.revokeObjectURL(blobUrl);
+          document.body.removeChild(a); // Remove the temporary link
+      }, 100);
+      logList = []; // empty the log list
     }
 
     function loadConfig(slot) {
@@ -1445,7 +1548,7 @@
       let configStr = localStorage.getItem(`pendulumSave${slot}`);
       
       if (!configStr && slot === 1) { 
-        refresh(); 
+        refresh(); // If slot 1 is empty, load defaults
         return;
       }
       if (!configStr) {
@@ -1458,18 +1561,36 @@
 
         if (loadedFullConfig.pendulumState) { 
           savedPendulumData = loadedFullConfig.pendulumState;
-          if (loadedFullConfig.hasOwnProperty('errorPercentage')) {
-            acceptableErrorPercentage = loadedFullConfig.errorPercentage;
-          } else {
-            acceptableErrorPercentage = 0.1; 
-          }
+          acceptableErrorPercentage = loadedFullConfig.errorPercentage !== undefined ? loadedFullConfig.errorPercentage : DEFAULT_CONFIG.acceptableErrorPercentage;
+          lockLengths = loadedFullConfig.lockLengths !== undefined ? loadedFullConfig.lockLengths : DEFAULT_CONFIG.lockLengths;
+
+          // Load display settings
+          showPendulumBox.checked = loadedFullConfig.showPendulum !== undefined ? loadedFullConfig.showPendulum : DEFAULT_CONFIG.showPendulum;
+          resetbox.checked = loadedFullConfig.showTrace !== undefined ? loadedFullConfig.showTrace : DEFAULT_CONFIG.showTrace;
+          graphbox.checked = loadedFullConfig.showGraph !== undefined ? loadedFullConfig.showGraph : DEFAULT_CONFIG.showGraph;
+          persistbox.checked = loadedFullConfig.persistTrace !== undefined ? loadedFullConfig.persistTrace : DEFAULT_CONFIG.persistTrace;
+          smoothenbox.checked = loadedFullConfig.smoothenTrace !== undefined ? loadedFullConfig.smoothenTrace : DEFAULT_CONFIG.smoothenTrace;
+          pauseOnFindBox.checked = loadedFullConfig.pauseOnFind !== undefined ? loadedFullConfig.pauseOnFind : DEFAULT_CONFIG.pauseOnFind;
+
         } else { 
           savedPendulumData = loadedFullConfig;
-          acceptableErrorPercentage = 0.1; 
+          acceptableErrorPercentage = DEFAULT_CONFIG.acceptableErrorPercentage; // Reset to default if old format
+          lockLengths = DEFAULT_CONFIG.lockLengths;
+          // Set display settings to default if old format
+          showPendulumBox.checked = DEFAULT_CONFIG.showPendulum;
+          resetbox.checked = DEFAULT_CONFIG.showTrace;
+          graphbox.checked = DEFAULT_CONFIG.showGraph;
+          persistbox.checked = DEFAULT_CONFIG.persistTrace;
+          smoothenbox.checked = DEFAULT_CONFIG.smoothenTrace;
+          pauseOnFindBox.checked = DEFAULT_CONFIG.pauseOnFind;
         }
         
         for (let prop in savedPendulumData) {
           if (doublePendulum.hasOwnProperty(prop)) {
+            // Do NOT load dt from save, use current dt or default
+            if (prop === 'dt') {
+                continue; 
+            }
             doublePendulum[prop] = savedPendulumData[prop];
           }
         }
@@ -1488,13 +1609,20 @@
           `0 0 ${doublePendulum.width} ${doublePendulum.height}`
         );
         
-        dtInput.value = doublePendulum.dt.toFixed(5);
-        errorPercentageInput.value = acceptableErrorPercentage.toFixed(3);
         gravityButton.checked = doublePendulum.g !== 0;
+        dtInput.value = doublePendulum.dt.toFixed(5); // Keep current dt input value
+        errorPercentageInput.value = acceptableErrorPercentage.toFixed(3); // Update error percentage input
 
         tracer.clearPoints();
         upperGraph.clearPoints();
         resetAllSpinCounters(); // Reset and initialize spin counters
+        
+        // Apply loaded display settings
+        togglePendulum(showPendulumBox.checked);
+        tracer.setActive(resetbox.checked);
+        upperGraph.setActive(graphbox.checked);
+        tracer.setMAX(persistbox.checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
+        tracer.smoothen = smoothenbox.checked;
 
       } catch (e) {
         console.error("Failed to load configuration from slot " + slot + ":", e);
@@ -1511,8 +1639,9 @@
       animationToggleButton.innerHTML = PLAY_SYMBOL;
       drawPendulum();
 
-      // Set initial pendulum state for "Pause on Find Origin" after loading
-      setInitialPendulumStateForPause();
+      // Ensure "Pause on Find Origin" state is based on checkbox, not loaded config
+      pauseOnFindEnabled = pauseOnFindBox.checked;
+      setInitialPendulumStateForPause(); // Set initial pendulum state for "Pause on Find Origin" after loading
     }
 
     function handleHold(clickX, clickY) {
@@ -1698,15 +1827,15 @@
 
     timerInterval = setInterval(updateTimer, TIMER_UPDATE_INTERVAL);
     
+    // Initial setup when the page loads
     refresh(); 
     animationToggle(); 
-    tracer.setMAX(document.getElementById('persistbox').checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
-    togglePendulum(document.getElementById('showPendulumBox').checked);
-    document.getElementById('lockLengthBox').checked = lockLengths;
-    // Initialize "Pause on Find Origin" state
-    pauseOnFindEnabled = document.getElementById('pauseOnFindBox').checked;
-    // No need to load from slot 2, just set the current state as origin if checkbox is active.
-    setInitialPendulumStateForPause(); 
+    // These are now initialized in refresh() based on DEFAULT_CONFIG
+    // tracer.setMAX(document.getElementById('persistbox').checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
+    // togglePendulum(document.getElementById('showPendulumBox').checked);
+    // document.getElementById('lockLengthBox').checked = lockLengths;
+    // pauseOnFindEnabled = document.getElementById('pauseOnFindBox').checked;
+    // setInitialPendulumStateForPause(); 
 
   </script>
 </html>
