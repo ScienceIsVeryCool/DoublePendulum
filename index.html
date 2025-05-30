@@ -153,6 +153,18 @@
         background-color: #0052a3;
       }
       
+      .menu-button.batch-running {
+        background-color: #ff6600;
+        color: white;
+        animation: pulse 1s infinite;
+      }
+      
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+      }
+      
       #pause {
         font-size: 20px;
         padding: 8px 16px;
@@ -318,6 +330,38 @@
         background-color: rgba(255, 255, 255, 0.2);
       }
       
+      /* Batch Simulation Styles */
+      .batch-input-group {
+        display: flex;
+        gap: 5px;
+        margin: 5px 0;
+        align-items: center;
+      }
+      
+      .batch-input-group label {
+        color: #909090;
+        font-size: 11px;
+        min-width: 60px;
+      }
+      
+      .batch-input-group input {
+        width: 60px;
+        padding: 3px;
+        background-color: #333;
+        color: white;
+        border: 1px solid #555;
+        border-radius: 3px;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 10px;
+      }
+      
+      .batch-status {
+        color: #00ccff;
+        font-size: 11px;
+        margin: 5px 0;
+        text-align: center;
+      }
+      
       /* Mobile Menu Toggle */
       .mobile-menu-toggle {
         display: none;
@@ -434,6 +478,21 @@
           border-radius: 5px;
           font-family: monospace;
           z-index: 9999;
+      }
+      
+      #batch-progress {
+        position: fixed;
+        bottom: 190px;
+        left: 10px;
+        font-size: 14pt;
+        font-weight: bold;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #ff6600;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-family: monospace;
+        z-index: 9999;
+        display: none;
       }
     </style>
   </head>
@@ -564,6 +623,47 @@
         <div class="menu-section right">
           <button onclick="shareConfig()" class="menu-button">SHARE</button>
           <div class="menu-dropdown">
+            <button class="menu-button" onclick="toggleDropdown('batchDropdown')">BATCH ▼</button>
+            <div id="batchDropdown" class="dropdown-content">
+              <div class="dropdown-section">
+                <div class="dropdown-title">Batch Simulation</div>
+                <div class="batch-input-group">
+                  <label>Ang0 Min:</label>
+                  <input type="number" id="ang0Min" value="0" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Ang0 Max:</label>
+                  <input type="number" id="ang0Max" value="3.14" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Ang0 Step:</label>
+                  <input type="number" id="ang0Step" value="0.5" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Ang1 Min:</label>
+                  <input type="number" id="ang1Min" value="0" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Ang1 Max:</label>
+                  <input type="number" id="ang1Max" value="3.14" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Ang1 Step:</label>
+                  <input type="number" id="ang1Step" value="0.5" step="0.1">
+                </div>
+                <div class="batch-input-group">
+                  <label>Sim Ticks:</label>
+                  <input type="number" id="batchTicks" value="1000" step="100">
+                </div>
+                <div class="save-load-buttons">
+                  <button id="startBatchBtn" onclick="startBatchSimulation()">🚀 Start Batch</button>
+                  <button onclick="stopBatchSimulation()">⏹ Stop Batch</button>
+                </div>
+                <div class="batch-status" id="batchStatus"></div>
+              </div>
+            </div>
+          </div>
+          <div class="menu-dropdown">
             <button class="menu-button" onclick="toggleDropdown('saveDropdown')">SAVE/LOAD ▼</button>
             <div id="saveDropdown" class="dropdown-content">
               <div class="dropdown-section">
@@ -595,6 +695,7 @@
     <div id="ub-ccw-spins-counter" class="spin-counter">UB CCW: 0</div>
     <div id="ub-cw-spins-counter" class="spin-counter">UB CW: 0</div>
     <div id="ticks-counter">Ticks: 0</div>
+    <div id="batch-progress">Batch: 0/0</div>
   </body>
   <script>
     // Menu functionality
@@ -692,7 +793,7 @@
     const TRACE_DEFAULT_MAX = 500;
     const TRACE_PERSIST_MAX = 10000;
     const LOG_TICK_FREQUENCY = 25;
-    const END_SIM_TICK = 1000; // DID YOU FORGET TO TURN THIS OFF? TODO better way of doing this
+    let END_SIM_TICK = 1000; // Now modifiable for batch simulations
 
     // Cached DOM elements
     const shareButton = document.querySelector("#share");
@@ -714,6 +815,10 @@
     // Upper Bob spin counters
     const ubCwSpinsCounter = document.getElementById("ub-cw-spins-counter");
     const ubCcwSpinsCounter = document.getElementById("ub-ccw-spins-counter");
+    // Batch elements
+    const batchProgressDiv = document.getElementById("batch-progress");
+    const batchStatusDiv = document.getElementById("batchStatus");
+    const startBatchBtn = document.getElementById("startBatchBtn");
  
     // New input element references
     const dtInput = document.getElementById("dtInput");
@@ -726,6 +831,11 @@
     const pauseOnFindBox = document.getElementById('pauseOnFindBox');
     const lockLengthBox = document.getElementById('lockLengthBox');
 
+    // Batch simulation variables
+    let batchMode = false;
+    let batchQueue = [];
+    let currentBatchIndex = 0;
+    let totalBatchRuns = 0;
 
     // Lower Bob spin tracking variables
     let lb_cw_spins = 0; 
@@ -750,6 +860,150 @@
     let pauseStart = Date.now();
     let timerInterval = null; 
     let logList = [];
+
+    // Batch simulation functions
+    function generateBatchQueue() {
+      const ang0Min = parseFloat(document.getElementById('ang0Min').value);
+      const ang0Max = parseFloat(document.getElementById('ang0Max').value);
+      const ang0Step = parseFloat(document.getElementById('ang0Step').value);
+      const ang1Min = parseFloat(document.getElementById('ang1Min').value);
+      const ang1Max = parseFloat(document.getElementById('ang1Max').value);
+      const ang1Step = parseFloat(document.getElementById('ang1Step').value);
+      
+      const queue = [];
+      
+      for (let ang0 = ang0Min; ang0 <= ang0Max; ang0 += ang0Step) {
+        for (let ang1 = ang1Min; ang1 <= ang1Max; ang1 += ang1Step) {
+          queue.push({
+            ang0: Math.round(ang0 * 1000) / 1000, // Round to avoid floating point errors
+            ang1: Math.round(ang1 * 1000) / 1000
+          });
+        }
+      }
+      
+      return queue;
+    }
+    
+    function startBatchSimulation() {
+      if (batchMode) {
+        console.log("Batch simulation already running");
+        return;
+      }
+      
+      // Generate the batch queue
+      batchQueue = generateBatchQueue();
+      totalBatchRuns = batchQueue.length;
+      currentBatchIndex = 0;
+      
+      if (batchQueue.length === 0) {
+        alert("No valid angle combinations found. Check your range settings.");
+        return;
+      }
+      
+      // Set simulation length
+      END_SIM_TICK = parseInt(document.getElementById('batchTicks').value) || 1000;
+      
+      // Enter batch mode
+      batchMode = true;
+      batchProgressDiv.style.display = 'block';
+      startBatchBtn.classList.add('batch-running');
+      startBatchBtn.textContent = '🔄 Running...';
+      
+      // Disable user interactions during batch
+      disableUserInteractions();
+      
+      console.log(`Starting batch simulation with ${totalBatchRuns} runs`);
+      updateBatchProgress();
+      
+      // Start first simulation
+      runNextBatchSimulation();
+    }
+    
+    function stopBatchSimulation() {
+      if (!batchMode) return;
+      
+      batchMode = false;
+      batchProgressDiv.style.display = 'none';
+      startBatchBtn.classList.remove('batch-running');
+      startBatchBtn.textContent = '🚀 Start Batch';
+      batchStatusDiv.textContent = 'Batch stopped';
+      
+      // Stop current animation
+      if (animation) {
+        clearInterval(animation);
+        animation = null;
+        animationToggleButton.innerHTML = PLAY_SYMBOL;
+      }
+      
+      // Re-enable user interactions
+      enableUserInteractions();
+      
+      console.log("Batch simulation stopped");
+    }
+    
+    function runNextBatchSimulation() {
+      if (!batchMode || currentBatchIndex >= batchQueue.length) {
+        // Batch complete
+        completeBatchSimulation();
+        return;
+      }
+      
+      const currentRun = batchQueue[currentBatchIndex];
+      console.log(`Running simulation ${currentBatchIndex + 1}/${totalBatchRuns}: ang0=${currentRun.ang0}, ang1=${currentRun.ang1}`);
+      
+      // Set the angles for this run
+      DEFAULT_CONFIG.ang0 = currentRun.ang0;
+      DEFAULT_CONFIG.ang1 = currentRun.ang1;
+      
+      // Reset the simulation with new angles
+      refresh();
+      
+      // Clear previous logs
+      logList = [];
+      
+      // Start the simulation
+      if (!animation) {
+        animationToggle();
+      }
+      
+      updateBatchProgress();
+    }
+    
+    function completeBatchSimulation() {
+      batchMode = false;
+      batchProgressDiv.style.display = 'none';
+      startBatchBtn.classList.remove('batch-running');
+      startBatchBtn.textContent = '🚀 Start Batch';
+      batchStatusDiv.textContent = `Batch complete! ${totalBatchRuns} simulations finished`;
+      
+      // Re-enable user interactions
+      enableUserInteractions();
+      
+      console.log(`Batch simulation completed: ${totalBatchRuns} runs finished`);
+      
+      // Reset to default angles
+      DEFAULT_CONFIG.ang0 = Math.PI / 2;
+      DEFAULT_CONFIG.ang1 = Math.PI / 2;
+      END_SIM_TICK = 1000;
+    }
+    
+    function updateBatchProgress() {
+      if (batchMode) {
+        batchProgressDiv.textContent = `Batch: ${currentBatchIndex + 1}/${totalBatchRuns}`;
+        const currentRun = batchQueue[currentBatchIndex];
+        batchStatusDiv.textContent = `Running: ang0=${currentRun.ang0}, ang1=${currentRun.ang1}`;
+      }
+    }
+    
+    function disableUserInteractions() {
+      // Disable manual controls during batch mode
+      document.body.style.pointerEvents = 'none';
+      document.querySelector('.menu-container').style.pointerEvents = 'auto';
+    }
+    
+    function enableUserInteractions() {
+      document.body.style.pointerEvents = 'auto';
+    }
 
     class DoublePendulum {
       constructor({
@@ -1198,17 +1452,19 @@
       lockLengths = DEFAULT_CONFIG.lockLengths;
       pauseOnFindEnabled = DEFAULT_CONFIG.pauseOnFind;
 
-      // Update UI elements based on default config
-      showPendulumBox.checked = DEFAULT_CONFIG.showPendulum;
-      resetbox.checked = DEFAULT_CONFIG.showTrace;
-      graphbox.checked = DEFAULT_CONFIG.showGraph;
-      persistbox.checked = DEFAULT_CONFIG.persistTrace;
-      smoothenbox.checked = DEFAULT_CONFIG.smoothenTrace;
-      pauseOnFindBox.checked = DEFAULT_CONFIG.pauseOnFind;
-      lockLengthBox.checked = DEFAULT_CONFIG.lockLengths;
+      // Update UI elements based on default config (only if not in batch mode)
+      if (!batchMode) {
+        showPendulumBox.checked = DEFAULT_CONFIG.showPendulum;
+        resetbox.checked = DEFAULT_CONFIG.showTrace;
+        graphbox.checked = DEFAULT_CONFIG.showGraph;
+        persistbox.checked = DEFAULT_CONFIG.persistTrace;
+        smoothenbox.checked = DEFAULT_CONFIG.smoothenTrace;
+        pauseOnFindBox.checked = DEFAULT_CONFIG.pauseOnFind;
+        lockLengthBox.checked = DEFAULT_CONFIG.lockLengths;
+      }
       
-      // Handle URL hash for loading configurations
-      if (window.location.hash.length > 0) {
+      // Handle URL hash for loading configurations (only if not in batch mode)
+      if (!batchMode && window.location.hash.length > 0) {
         const query = window.location.hash.substring(1);
         try {
           const encoded_JSON = atob(query);
@@ -1420,11 +1676,21 @@
         logCurrentState();
 
       }
-      // Save to file
+      // Save to file or move to next batch simulation
       if (END_SIM_TICK > 0 && totalTicks == END_SIM_TICK)
       {
         animationToggle();
-        saveLogToFile();
+        if (batchMode) {
+          // Save current simulation and move to next
+          saveLogToFile();
+          currentBatchIndex++;
+          // Small delay before starting next simulation
+          setTimeout(() => {
+            runNextBatchSimulation();
+          }, 100);
+        } else {
+          saveLogToFile();
+        }
       }
 
       ticksCounter.textContent = `Ticks: ${totalTicks}`; 
@@ -1523,14 +1789,16 @@
     }
 
     function saveLogToFile() {
-
       const allDaLogs = JSON.stringify(logList);
       const blob = new Blob([allDaLogs], {type: 'application/json' });
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      // If You wanna do cutesy video stuff, make the name be in relation to the pixel x,y value!
-      a.download = `${DEFAULT_CONFIG.ang0}_${DEFAULT_CONFIG.ang1}.json`;
+      
+      // Create filename with both angles
+      const ang0_str = DEFAULT_CONFIG.ang0.toFixed(3).replace('.', '_');
+      const ang1_str = DEFAULT_CONFIG.ang1.toFixed(3).replace('.', '_');
+      a.download = `pendulum_${ang0_str}_${ang1_str}.json`;
 
       document.body.appendChild(a);
       a.click();
@@ -1645,6 +1913,9 @@
     }
 
     function handleHold(clickX, clickY) {
+      // Don't allow manual interaction during batch mode
+      if (batchMode) return;
+      
       const { x0, y0, baseRad, r0, r1 } = doublePendulum;
       const upperBobPos = doublePendulum.getUpperBob();
       const lowerBobPos = doublePendulum.getLowerBob();
@@ -1684,6 +1955,8 @@
     }
 
     function handleMove(clickX, clickY) {
+      if (batchMode) return; // Don't allow manual interaction during batch mode
+      
       if (doublePendulum.baseHold || doublePendulum.upperBobHold || doublePendulum.lowerBobHold) {
         if (doublePendulum.baseHold) {
             doublePendulum.setBasePos(clickX, clickY);
@@ -1706,6 +1979,8 @@
     }
 
     function handleDrop() {
+      if (batchMode) return; // Don't allow manual interaction during batch mode
+      
       if (!animation && (doublePendulum.upperBobHold || doublePendulum.lowerBobHold || doublePendulum.baseHold )) {
          if(pauseStart === null) pauseStart = Date.now();
       }
@@ -1796,14 +2071,20 @@
       dropdown.addEventListener("touchstart", (e) => e.stopPropagation());
     });
 
-    animationToggleButton.addEventListener("click", animationToggle);
+    animationToggleButton.addEventListener("click", () => {
+      if (!batchMode) { // Only allow manual toggle when not in batch mode
+        animationToggle();
+      }
+    });
 
     window.addEventListener("keyup", (e) => {
       if (e.key === " " || e.code === "Space") {
         // Prevent space from triggering buttons if a text input is focused
         if (document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text') return;
         if (document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'number') return;
-        animationToggle();
+        if (!batchMode) { // Only allow spacebar toggle when not in batch mode
+          animationToggle();
+        }
       }
     });
 
@@ -1830,12 +2111,6 @@
     // Initial setup when the page loads
     refresh(); 
     animationToggle(); 
-    // These are now initialized in refresh() based on DEFAULT_CONFIG
-    // tracer.setMAX(document.getElementById('persistbox').checked ? TRACE_PERSIST_MAX : TRACE_DEFAULT_MAX);
-    // togglePendulum(document.getElementById('showPendulumBox').checked);
-    // document.getElementById('lockLengthBox').checked = lockLengths;
-    // pauseOnFindEnabled = document.getElementById('pauseOnFindBox').checked;
-    // setInitialPendulumStateForPause(); 
 
   </script>
 </html>
